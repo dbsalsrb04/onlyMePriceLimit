@@ -638,7 +638,7 @@ kbd {
 }
 
 .price-grid thead .month-cell {
-  z-index: 4;
+  z-index: 3;
 }
 
 .editor-column {
@@ -671,59 +671,10 @@ kbd {
   text-align: right;
 }
 
-.price-grid .focused-price-column {
-  transform: translateY(-1px) scaleX(1.05);
-  background: var(--surface-raised);
-}
-
-.price-grid td.focused-price-column {
-  position: relative;
-  z-index: 0;
-}
-
-.price-grid thead .focused-price-column {
-  z-index: 3;
-}
-
-.price-grid .focused-price-column::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  /* Clip the shadow at row seams so it runs along the column edges. */
-  clip-path: inset(0 -9px);
-  box-shadow: 0 0 0 1px rgb(255 255 255 / 7%), 0 0 7px rgb(0 0 0 / 38%);
-  pointer-events: none;
-}
-
-.price-grid thead .focused-price-column::after {
-  clip-path: inset(-9px -9px 0);
-}
-
-.price-grid tbody tr:last-child .focused-price-column::after {
-  clip-path: inset(0 -9px -9px);
-}
-
 .price-grid tbody tr:focus-within {
   position: relative;
   z-index: 1;
-  transform: translateY(-1px) scaleY(1.05);
-  background: var(--surface-raised);
-  box-shadow: 0 0 0 1px rgb(255 255 255 / 7%), 0 0 7px rgb(0 0 0 / 38%);
-}
-
-.price-grid tbody tr:focus-within > td.focused-price-column {
-  transform: scaleX(1.05);
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .price-grid .focused-price-column,
-  .price-grid tbody tr:focus-within {
-    animation: lift-price-focus 140ms ease-out;
-  }
-}
-
-@keyframes lift-price-focus {
-  from { transform: none; }
+  box-shadow: 0 0 0 1px rgb(255 255 255 / 30%), 0 0 10px rgb(255 255 255 / 32%);
 }
 
 .price-input.has-error, .price-input[aria-invalid="true"] {
