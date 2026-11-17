@@ -671,6 +671,17 @@ kbd {
   text-align: right;
 }
 
+.price-grid input.price-input:focus {
+  transform: translateY(-1px) scale(1.05);
+  box-shadow: 0 0 0 1px rgb(255 255 255 / 7%), 0 0 7px rgb(0 0 0 / 38%);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .price-grid input.price-input {
+    transition: transform 140ms ease-out, box-shadow 140ms ease-out;
+  }
+}
+
 .price-input.has-error, .price-input[aria-invalid="true"] {
   border-color: var(--gain);
 }
