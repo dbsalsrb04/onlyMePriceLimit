@@ -223,7 +223,8 @@ function renderStockList() {
     const picker = button('stock-picker', stock.name);
     picker.title = stock.name;
     picker.setAttribute('aria-pressed', String(selected.has(stock.id)));
-    picker.addEventListener('click', () => {
+    item.addEventListener('click', ({ target }) => {
+      if (target.closest('.stock-list-actions button')) return;
       toggleColumn(stock.id);
       picker.setAttribute('aria-pressed', String(selected.has(stock.id)));
     });
@@ -259,7 +260,6 @@ function priceCell({ id, name }, month) {
   input.type = 'text';
   input.inputMode = 'numeric';
   input.autocomplete = 'off';
-  input.placeholder = '—';
   input.dataset.stock = id;
   input.dataset.month = month;
   input.setAttribute('aria-label', `${name} ${formatMonth(month)} 가격`);
@@ -391,18 +391,15 @@ async function registerStock(event) {
   submit.disabled = true;
   setStatus('stock-form-status');
   try {
-    const startingColumn = selected.size === 0;
     await runWrite(async () => {
       const stock = await addStock(database, name);
       stocks.push(stock);
       pricesByStock.set(stock.id, new Map());
-      selected.add(stock.id);
       notifyOtherTabs();
     });
     if (input.value === name) input.value = '';
     $('stock-search').value = '';
     refreshPage();
-    if (startingColumn && activePage === 'editor') scrollToEditorMonth(currentMonth);
   } catch (error) {
     setStatus('stock-form-status', errorMessage(error, '종목을 추가하지 못했어요.'), true);
   } finally {
