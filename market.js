@@ -1,4 +1,4 @@
-export const FIRST_MONTH = "1998-07";
+export const FIRST_MONTH = "1998-03";
 export const INITIAL_LAST_MONTH = "2026-11";
 
 const LAST_SUPPORTED_MONTH = "9999-12";
