@@ -703,13 +703,26 @@ kbd {
   clip-path: inset(0 -9px -9px);
 }
 
+.price-grid tbody tr:focus-within {
+  position: relative;
+  z-index: 1;
+  transform: translateY(-1px) scaleY(1.05);
+  background: var(--surface-raised);
+  box-shadow: 0 0 0 1px rgb(255 255 255 / 7%), 0 0 7px rgb(0 0 0 / 38%);
+}
+
+.price-grid tbody tr:focus-within > td.focused-price-column {
+  transform: scaleX(1.05);
+}
+
 @media (prefers-reduced-motion: no-preference) {
-  .price-grid .focused-price-column {
-    animation: lift-price-column 140ms ease-out;
+  .price-grid .focused-price-column,
+  .price-grid tbody tr:focus-within {
+    animation: lift-price-focus 140ms ease-out;
   }
 }
 
-@keyframes lift-price-column {
+@keyframes lift-price-focus {
   from { transform: none; }
 }
 
