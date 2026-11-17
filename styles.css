@@ -621,7 +621,7 @@ kbd {
 
 .price-grid thead th {
   position: sticky;
-  z-index: 2;
+  z-index: 3;
   top: 0;
   background: var(--surface-raised);
 }
@@ -638,7 +638,7 @@ kbd {
 }
 
 .price-grid thead .month-cell {
-  z-index: 3;
+  z-index: 4;
 }
 
 .editor-column {
@@ -672,9 +672,16 @@ kbd {
 }
 
 .price-grid tbody tr:focus-within {
+  --price-row-outline: rgb(255 255 255 / 30%);
+  --price-row-glow: rgb(255 255 255 / 32%);
   position: relative;
-  z-index: 1;
-  box-shadow: 0 0 0 1px rgb(255 255 255 / 30%), 0 0 10px rgb(255 255 255 / 32%);
+  z-index: 2;
+  box-shadow: 0 0 0 1px var(--price-row-outline), 0 0 10px var(--price-row-glow);
+}
+
+.price-grid tbody tr:focus-within > .month-cell {
+  /* The scroll container clips the outer shadow at this pinned edge. */
+  box-shadow: inset 1px 0 var(--price-row-outline), inset 7px 0 8px -8px var(--price-row-glow);
 }
 
 .price-input.has-error, .price-input[aria-invalid="true"] {
