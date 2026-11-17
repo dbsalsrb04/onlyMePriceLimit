@@ -329,6 +329,18 @@ function scrollToEditorMonth(month) {
   scroller.scrollTop += row.getBoundingClientRect().top - scroller.getBoundingClientRect().top - headerHeight;
 }
 
+function setFocusedPriceColumn(table, index) {
+  const previous = Number(table.dataset.focusedPriceColumn ?? -1);
+  if (index === previous) return;
+
+  for (const row of table.rows) {
+    row.cells[previous]?.classList.remove('focused-price-column');
+    row.cells[index]?.classList.add('focused-price-column');
+  }
+  if (index === -1) delete table.dataset.focusedPriceColumn;
+  else table.dataset.focusedPriceColumn = index;
+}
+
 function parsePrice(value) {
   const text = value.trim();
   if (!text) return null;
@@ -543,8 +555,17 @@ function wireEvents() {
   $('stock-form').addEventListener('submit', registerStock);
   $('stock-search').addEventListener('input', renderStockList);
   const priceEditor = $('editor-scroller');
-  priceEditor.addEventListener('focusout', ({ target }) => {
-    if (!target.matches('.price-input') || target.readOnly) return;
+  priceEditor.addEventListener('focusin', ({ target }) => {
+    if (!target.matches('.price-input')) return;
+    setFocusedPriceColumn(target.closest('.price-grid'), target.parentElement.cellIndex);
+  });
+  priceEditor.addEventListener('focusout', ({ target, relatedTarget }) => {
+    if (!target.matches('.price-input')) return;
+    const table = target.closest('.price-grid');
+    if (!relatedTarget?.matches?.('.price-input') || !table.contains(relatedTarget)) {
+      setFocusedPriceColumn(table, -1);
+    }
+    if (target.readOnly) return;
     const { stock, month } = target.dataset;
     if (drafts.get(stock)?.has(month)) commitPrice(target);
   });
