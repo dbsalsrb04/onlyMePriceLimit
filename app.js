@@ -11,7 +11,8 @@ const $ = (id) => document.getElementById(id);
 const byName = new Intl.Collator('ko-KR');
 const projectPath = new URL('./', location.href).pathname;
 const preferencesKey = `onlyMePriceLimit:preferences:${projectPath}`;
-const preferences = readPreferences();
+const editorSelectionKey = `onlyMePriceLimit:editor-selection:${projectPath}`;
+const preferences = readPreference(preferencesKey) ?? {};
 let currentMonth = isValidMonth(preferences.month) ? preferences.month : FIRST_MONTH;
 let lastMonth = INITIAL_LAST_MONTH;
 let viewType = preferences.view === 'table' ? 'table' : 'cards';
@@ -20,26 +21,35 @@ let activePage = 'view';
 let database;
 let stocks = [];
 let pricesByStock = new Map();
-const selected = new Set();
+const selected = new Set(readEditorSelection());
 const drafts = new Map();
 let gridSignature;
 let pendingWrite = Promise.resolve();
 let tabUpdates;
 
-function readPreferences() {
+function readPreference(key) {
   try {
-    return JSON.parse(localStorage.getItem(preferencesKey)) ?? {};
+    return JSON.parse(localStorage.getItem(key));
   } catch {
-    return {};
+    return null;
+  }
+}
+
+function writePreference(key, value) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // Price storage is independent of browser preferences.
   }
 }
 
 function savePreferences() {
-  try {
-    localStorage.setItem(preferencesKey, JSON.stringify({ month: currentMonth, view: viewType }));
-  } catch {
-    // Price storage is independent of browser display preferences.
-  }
+  writePreference(preferencesKey, { month: currentMonth, view: viewType });
+}
+
+function readEditorSelection() {
+  const saved = readPreference(editorSelectionKey);
+  return Array.isArray(saved) ? saved : [];
 }
 
 function element(tag, className, content) {
@@ -82,6 +92,11 @@ function useSnapshot(snapshot) {
       selected.delete(id);
       drafts.delete(id);
     }
+  }
+  const savedSelection = readEditorSelection();
+  const availableSelection = savedSelection.filter((id) => pricesByStock.has(id));
+  if (availableSelection.length !== savedSelection.length) {
+    writePreference(editorSelectionKey, availableSelection);
   }
 }
 
@@ -246,6 +261,7 @@ function toggleColumn(stockId) {
   const startingColumn = selected.size === 0;
   if (selected.has(stockId)) selected.delete(stockId);
   else selected.add(stockId);
+  writePreference(editorSelectionKey, [...selected]);
   renderGrid();
   if (startingColumn) scrollToEditorMonth(currentMonth);
 }
@@ -272,6 +288,7 @@ function renderGrid() {
   const stocksById = new Map(stocks.map((stock) => [stock.id, stock]));
   const columns = [...selected].map((id) => stocksById.get(id));
   const scroller = $('editor-scroller');
+  $('reset-editor-selection').disabled = columns.length === 0;
   scroller.hidden = columns.length === 0;
   $('editor-empty').hidden = columns.length !== 0;
   const signature = JSON.stringify([lastMonth, columns]);
@@ -542,6 +559,12 @@ function wireEvents() {
   });
   $('stock-form').addEventListener('submit', registerStock);
   $('stock-search').addEventListener('input', renderStockList);
+  $('reset-editor-selection').addEventListener('click', () => {
+    selected.clear();
+    writePreference(editorSelectionKey, []);
+    refreshPage();
+    $('stock-search').focus();
+  });
   const priceEditor = $('editor-scroller');
   priceEditor.addEventListener('focusout', ({ target }) => {
     if (!target.matches('.price-input') || target.readOnly) return;
