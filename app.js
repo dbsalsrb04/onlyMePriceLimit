@@ -101,11 +101,15 @@ function rateElement(tag, className, rate) {
   return element(tag, `${className} tone-${rateTone(rate)}`, formatRate(rate));
 }
 
+function formatPriceChange(currentPrice, nextPrice) {
+  return `${formatPrice(currentPrice)} → ${formatPrice(nextPrice)}`;
+}
+
 function renderLeader({ name, currentPrice, nextPrice, rate }) {
   const card = element('article', 'leader-card');
   card.append(
     element('h3', 'leader-name', name),
-    element('p', 'leader-prices', `${formatPrice(currentPrice)} → ${formatPrice(nextPrice)}`),
+    element('p', 'leader-prices', formatPriceChange(currentPrice, nextPrice)),
     rateElement('strong', 'leader-rate', rate),
   );
   return card;
@@ -113,12 +117,11 @@ function renderLeader({ name, currentPrice, nextPrice, rate }) {
 
 function renderCard({ name, currentPrice, nextPrice, rate }) {
   const card = element('article', 'stock-card');
-  const bottom = element('div', 'stock-card-bottom');
-  const next = element('span', 'stock-card-next', formatPrice(nextPrice));
-  next.setAttribute('aria-label', `다음 달 가격 ${formatPrice(nextPrice)}`);
-  const current = element('p', 'stock-card-current', `현재가 ${formatPrice(currentPrice)}`);
-  bottom.append(next, rateElement('strong', 'stock-card-rate', rate));
-  card.append(element('h3', 'stock-card-name', name), current, bottom);
+  const summary = element('p', 'stock-card-summary');
+  const rateText = rateElement('strong', 'stock-card-rate', rate);
+  rateText.textContent = `(${rateText.textContent})`;
+  summary.append(element('span', 'stock-card-prices', formatPriceChange(currentPrice, nextPrice)), ' ', rateText);
+  card.append(element('h3', 'stock-card-name', name), summary);
   return card;
 }
 
@@ -218,16 +221,19 @@ function renderStockList() {
   const items = matching.map((stock) => {
     const item = element('li', 'stock-list-item');
     const picker = button('stock-picker', stock.name);
+    picker.title = stock.name;
     picker.setAttribute('aria-pressed', String(selected.has(stock.id)));
     picker.addEventListener('click', () => {
       toggleColumn(stock.id);
       picker.setAttribute('aria-pressed', String(selected.has(stock.id)));
     });
-    const rename = button('icon-button', '이름 변경', `${stock.name} 이름 변경`);
+    const rename = button('stock-rename', '이름 변경', `${stock.name} 이름 변경`);
     rename.addEventListener('click', () => beginRename(stock));
-    const remove = button('icon-button', '삭제', `${stock.name} 삭제`);
+    const remove = button('stock-delete', '삭제', `${stock.name} 삭제`);
     remove.addEventListener('click', () => beginStockDeletion(stock));
-    item.append(picker, rename, remove);
+    const actions = element('div', 'stock-list-actions');
+    actions.append(rename, remove);
+    item.append(picker, actions);
     return item;
   });
   $('stock-list').replaceChildren(...items);
@@ -243,6 +249,10 @@ function toggleColumn(stockId) {
   if (startingColumn) scrollToEditorMonth(currentMonth);
 }
 
+function formatPriceInput(price) {
+  return price == null ? '' : formatPrice(price);
+}
+
 function priceCell({ id, name }, month) {
   const cell = element('td');
   const input = element('input', 'price-input');
@@ -253,7 +263,7 @@ function priceCell({ id, name }, month) {
   input.dataset.stock = id;
   input.dataset.month = month;
   input.setAttribute('aria-label', `${name} ${formatMonth(month)} 가격`);
-  input.value = drafts.get(id)?.get(month) ?? pricesByStock.get(id).get(month) ?? '';
+  input.value = drafts.get(id)?.get(month) ?? formatPriceInput(pricesByStock.get(id).get(month));
   cell.append(input);
   return cell;
 }
@@ -275,6 +285,7 @@ function renderGrid() {
   const oldTop = scroller.scrollTop;
   const oldLeft = scroller.scrollLeft;
   const table = element('table', 'price-grid');
+  table.style.setProperty('--stock-column-count', String(columns.length));
   table.setAttribute('aria-label', '종목별 월간 주가 편집');
   const heading = table.createTHead().insertRow();
   const monthHeading = element('th', 'month-cell', '연월');
@@ -290,7 +301,9 @@ function renderGrid() {
       renderStockList();
       $('stock-search').focus();
     });
-    columnHeader.append(element('span', '', name), close);
+    const columnName = element('span', 'editor-column-name', name);
+    columnName.title = name;
+    columnHeader.append(columnName, close);
     th.append(columnHeader);
     heading.append(th);
   }
@@ -298,7 +311,7 @@ function renderGrid() {
   for (const month of listMonths(lastMonth)) {
     const row = body.insertRow();
     row.dataset.month = month;
-    const monthCell = element('th', 'month-cell', month.replace('-', '.'));
+    const monthCell = element('th', 'month-cell', month);
     monthCell.scope = 'row';
     row.append(monthCell);
     for (const stock of columns) row.append(priceCell(stock, month));
@@ -319,16 +332,18 @@ function scrollToEditorMonth(month) {
 function parsePrice(value) {
   const text = value.trim();
   if (!text) return null;
-  const number = Number(text.replaceAll(',', ''));
-  if (!/^(?:[0-9]+|[0-9]{1,3}(?:,[0-9]{3})+)$/.test(text) || !Number.isSafeInteger(number)) {
+  const amount = text.replace(/\s*원$/, '');
+  const number = Number(amount.replaceAll(',', ''));
+  if (!/^(?:[0-9]+|[0-9]{1,3}(?:,[0-9]{3})+)$/.test(amount) || !Number.isSafeInteger(number)) {
     throw new Error('가격은 0 이상의 정수로 입력해 주세요.');
   }
   return number;
 }
 
-async function commitPrice(input) {
+async function commitPrice(input, advance = false) {
   if (input.readOnly) return;
   const { stock: stockId, month } = input.dataset;
+  const draft = drafts.get(stockId)?.get(month);
   input.readOnly = true;
   try {
     const price = parsePrice(input.value);
@@ -337,17 +352,22 @@ async function commitPrice(input) {
       const prices = pricesByStock.get(stockId);
       if (price === null) prices.delete(month);
       else prices.set(month, price);
-      drafts.get(stockId)?.delete(month);
+      if (drafts.get(stockId)?.get(month) === draft) drafts.get(stockId)?.delete(month);
       notifyOtherTabs();
     });
-    input.value = price ?? '';
-    input.removeAttribute('aria-invalid');
-    input.classList.remove('has-error');
+    const field = input.isConnected ? input : $('editor-scroller').querySelector(
+      `.price-input[data-stock="${CSS.escape(stockId)}"][data-month="${month}"]`,
+    );
+    if (field && !drafts.get(stockId)?.has(month)) {
+      field.value = formatPriceInput(price);
+      field.removeAttribute('aria-invalid');
+      field.classList.remove('has-error');
+    }
     const stock = stocks.find(({ id }) => id === stockId);
     const message = price === null ? '가격 기록을 지웠어요.' : `${formatPrice(price)} 저장했어요.`;
     setStatus('editor-status', `${stock.name} · ${formatMonth(month)} · ${message}`);
     if (activePage === 'view') renderMarket();
-    if (document.activeElement === input) {
+    if (advance && document.activeElement === input) {
       const cell = input.closest('td');
       const nextRow = cell.parentElement.nextElementSibling;
       const nextInput = nextRow?.cells[cell.cellIndex]?.firstElementChild;
@@ -525,7 +545,13 @@ function wireEvents() {
   });
   $('stock-form').addEventListener('submit', registerStock);
   $('stock-search').addEventListener('input', renderStockList);
-  $('editor-scroller').addEventListener('input', ({ target }) => {
+  const priceEditor = $('editor-scroller');
+  priceEditor.addEventListener('focusout', ({ target }) => {
+    if (!target.matches('.price-input') || target.readOnly) return;
+    const { stock, month } = target.dataset;
+    if (drafts.get(stock)?.has(month)) commitPrice(target);
+  });
+  priceEditor.addEventListener('input', ({ target }) => {
     if (!target.matches('.price-input')) return;
     const { stock, month } = target.dataset;
     if (!drafts.has(stock)) drafts.set(stock, new Map());
@@ -533,10 +559,10 @@ function wireEvents() {
     target.classList.remove('has-error');
     target.removeAttribute('aria-invalid');
   });
-  $('editor-scroller').addEventListener('keydown', (event) => {
+  priceEditor.addEventListener('keydown', (event) => {
     if (event.key !== 'Enter' || event.isComposing || !event.target.matches('.price-input')) return;
     event.preventDefault();
-    commitPrice(event.target);
+    commitPrice(event.target, true);
   });
   $('rename-form').addEventListener('submit', submitRename);
   $('rename-cancel').addEventListener('click', () => $('rename-dialog').close());
