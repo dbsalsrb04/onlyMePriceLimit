@@ -189,27 +189,38 @@ input::placeholder {
   outline: none;
 }
 
-.month-controls {
+.view-header {
   display: grid;
-  grid-template-columns: 2.4rem minmax(7.6rem, auto) 2.4rem;
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: center;
+}
+
+.view-header h1 {
+  justify-self: start;
+}
+
+.month-controls {
+  --month-arrow-size: clamp(2.75rem, 7vw, 3.5rem);
+  display: grid;
+  grid-template-columns: var(--month-arrow-size) clamp(9.75rem, 21vw, 13rem) var(--month-arrow-size);
   align-items: center;
-  gap: 0.35rem;
+  gap: clamp(0.35rem, 1.5vw, 0.8rem);
 }
 
 .month-arrow {
   display: grid;
-  height: 2.4rem;
+  height: var(--month-arrow-size);
   padding: 0;
   place-items: center;
-  font-size: 1.5rem;
+  font-size: 1.875rem;
   font-weight: 500;
   line-height: 1;
 }
 
 .current-month {
   text-align: center;
-  font-size: 0.975rem;
-  font-weight: 650;
+  font-size: clamp(1.375rem, 3.5vw, 2rem);
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -713,6 +724,10 @@ dialog p:not(.status) {
 
 @media (min-width: 34rem) {
   .market-cards { --card-columns: 2; }
+}
+
+@media (min-width: 40rem) {
+  .view-header { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); }
 }
 
 @media (min-width: 50rem) {
