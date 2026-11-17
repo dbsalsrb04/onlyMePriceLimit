@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="나 혼자만 상한가의 게임 속 월별 주가 기록과 다음 달 등락률 조회">
+    <meta name="theme-color" content="#151618">
+    <title>나 혼자만 상한가</title>
+    <link rel="stylesheet" href="./styles.css">
+    <script type="module" src="./app.js"></script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="site-header-inner">
+        <div class="site-title">
+          <span class="site-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+          <span>나 혼자만 상한가</span>
+        </div>
+        <nav aria-label="화면 전환">
+          <button type="button" class="nav-button" id="open-editor">데이터 편집</button>
+          <button type="button" class="nav-button" id="open-view" hidden>월별 조회</button>
+        </nav>
+      </div>
+    </header>
+
+    <main class="workspace">
+      <p id="app-status" class="status app-status" role="status"></p>
+      <noscript><p class="status status-error">이 페이지를 사용하려면 자바스크립트를 활성화해 주세요.</p></noscript>
+
+      <section id="view" aria-labelledby="view-heading">
+        <header class="page-header">
+          <h1 id="view-heading" tabindex="-1">월별 조회</h1>
+          <div class="month-controls" role="group" aria-label="조회 연월">
+            <button type="button" class="month-arrow" id="previous-month" aria-label="이전 달" disabled>‹</button>
+            <p id="current-month" class="current-month" aria-live="polite">1999년 7월</p>
+            <button type="button" class="month-arrow" id="next-month" aria-label="다음 달">›</button>
+          </div>
+        </header>
+
+        <section class="leader-section" aria-labelledby="leader-heading">
+          <h2 id="leader-heading">다음 달 상승률 1위</h2>
+          <div id="leaders" class="leaders"></div>
+          <p id="leader-empty" class="empty-state leader-empty">비교 가능한 종목이 없어요.</p>
+        </section>
+
+        <section class="market-section" aria-labelledby="market-heading">
+          <header class="market-header">
+            <div class="market-heading-group">
+              <h2 id="market-heading">전체 종목</h2>
+              <span id="stock-count" class="stock-count"></span>
+            </div>
+            <div class="market-controls">
+              <div class="segmented-control" role="group" aria-label="보기 방식">
+                <button type="button" id="view-cards" aria-pressed="true">카드로 보기</button>
+                <button type="button" id="view-table" aria-pressed="false">표로 보기</button>
+              </div>
+              <div class="segmented-control" role="group" aria-label="종목 정렬">
+                <button type="button" id="sort-name" aria-pressed="true">가나다 순</button>
+                <button type="button" id="sort-rate" aria-pressed="false">상승률 순</button>
+              </div>
+            </div>
+          </header>
+          <div id="market-cards" class="market-cards"></div>
+          <div id="market-table" class="market-table scroll-region" role="region" aria-label="종목 가격과 다음 달 상승률" tabindex="0" hidden>
+            <table>
+              <thead>
+                <tr>
+                  <th scope="col">종목명</th>
+                  <th scope="col">현재 월 기준 가격</th>
+                  <th scope="col">다음 달 가격</th>
+                  <th scope="col">다음 달 상승률</th>
+                </tr>
+              </thead>
+              <tbody id="market-rows"></tbody>
+            </table>
+          </div>
+          <p id="market-empty" class="empty-state">등록된 종목이 없어요. 데이터 편집에서 종목을 추가할 수 있어요.</p>
+        </section>
+      </section>
+
+      <section id="editor" aria-labelledby="editor-heading" hidden>
+        <header class="page-header editor-header">
+          <h1 id="editor-heading" tabindex="-1">데이터 편집</h1>
+          <div class="backup-controls" role="group" aria-label="데이터 백업">
+            <button type="button" id="export-backup">백업 내보내기</button>
+            <button type="button" id="import-backup">백업 복원</button>
+            <input type="file" id="backup-file" accept=".json,application/json" aria-label="JSON 백업 파일" hidden>
+          </div>
+        </header>
+
+        <section class="stock-management" aria-labelledby="stock-management-heading">
+          <h2 id="stock-management-heading">종목 관리</h2>
+          <div class="stock-tools">
+            <form id="stock-form" autocomplete="off">
+              <label for="stock-name" class="control-label">새 종목</label>
+              <div class="stock-add">
+                <input id="stock-name" type="text" placeholder="종목명" required>
+                <button type="submit" class="button-primary">+ 추가</button>
+              </div>
+            </form>
+            <div class="stock-search">
+              <label for="stock-search" class="control-label">종목 검색</label>
+              <input id="stock-search" type="search" placeholder="종목명으로 검색" autocomplete="off">
+            </div>
+          </div>
+          <p id="stock-form-status" class="status" role="status"></p>
+          <ul id="stock-list" class="stock-list" aria-label="등록 종목"></ul>
+          <p id="stock-list-empty" class="stock-list-empty">등록된 종목이 없어요.</p>
+        </section>
+
+        <section class="price-section" aria-labelledby="price-heading">
+          <header class="price-header">
+            <h2 id="price-heading">월별 가격</h2>
+            <p class="entry-hint"><kbd>Enter</kbd>로 저장하고 다음 달로 이동</p>
+          </header>
+          <p id="editor-status" class="status" role="status"></p>
+          <div id="editor-scroller" class="editor-scroller scroll-region" role="region" aria-label="월별 가격 입력" tabindex="0" hidden></div>
+          <p id="editor-empty" class="empty-state">목록에서 편집할 종목을 선택해 주세요.</p>
+        </section>
+      </section>
+    </main>
+
+    <dialog id="confirm-dialog" aria-labelledby="confirm-title" aria-describedby="confirm-description">
+      <h2 id="confirm-title">변경 확인</h2>
+      <p id="confirm-description"></p>
+      <div class="dialog-actions">
+        <button type="button" id="confirm-cancel" autofocus>취소</button>
+        <button type="button" id="confirm-action" class="button-danger">확인</button>
+      </div>
+    </dialog>
+
+    <dialog id="rename-dialog" aria-labelledby="rename-title">
+      <form id="rename-form" autocomplete="off">
+        <h2 id="rename-title">종목 이름 변경</h2>
+        <label for="rename-name" class="control-label">새 종목명</label>
+        <input id="rename-name" type="text" required autofocus>
+        <p id="rename-status" class="status" role="status"></p>
+        <div class="dialog-actions">
+          <button type="button" id="rename-cancel">취소</button>
+          <button type="submit" class="button-primary">저장</button>
+        </div>
+      </form>
+    </dialog>
+  </body>
+</html>
