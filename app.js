@@ -3,7 +3,7 @@ import {
   formatMonth, formatPrice, formatRate, rateTone, buildMarketView,
 } from './market.js';
 import {
-  openDatabase, readSnapshot, addStock, renameStock, deleteStock, savePrice,
+  openDatabase, readSnapshot, addStock, renameStock, deleteStock, savePrice, saveIssuedShares,
   replaceSnapshot, serializeBackup, parseBackup,
 } from './storage.js';
 import { bindEditorColumnDrag } from './editor-column-drag.js';
@@ -24,6 +24,7 @@ let stocks = [];
 let pricesByStock = new Map();
 const selected = new Set(readEditorSelection());
 const drafts = new Map();
+const issuedSharesDrafts = new Map();
 let gridSignature;
 let pendingWrite = Promise.resolve();
 let tabUpdates;
@@ -93,6 +94,9 @@ function useSnapshot(snapshot) {
       selected.delete(id);
       drafts.delete(id);
     }
+  }
+  for (const id of issuedSharesDrafts.keys()) {
+    if (!pricesByStock.has(id)) issuedSharesDrafts.delete(id);
   }
   const savedSelection = readEditorSelection();
   const availableSelection = savedSelection.filter((id) => pricesByStock.has(id));
@@ -240,7 +244,7 @@ function renderStockList() {
     picker.title = stock.name;
     picker.setAttribute('aria-pressed', String(selected.has(stock.id)));
     item.addEventListener('click', ({ target }) => {
-      if (target.closest('.stock-list-actions button')) return;
+      if (target.closest('.stock-list-actions button, .stock-shares')) return;
       toggleColumn(stock.id);
       picker.setAttribute('aria-pressed', String(selected.has(stock.id)));
     });
@@ -250,12 +254,68 @@ function renderStockList() {
     remove.addEventListener('click', () => beginStockDeletion(stock));
     const actions = element('div', 'stock-list-actions');
     actions.append(rename, remove);
-    item.append(picker, actions);
+    const shareCount = element('div', 'stock-shares');
+    const shareInput = element('input', 'issued-shares-input');
+    shareInput.type = 'text';
+    shareInput.inputMode = 'numeric';
+    shareInput.autocomplete = 'off';
+    shareInput.placeholder = '발행주식 수';
+    shareInput.dataset.stock = stock.id;
+    shareInput.setAttribute('aria-label', `${stock.name} 발행주식 수`);
+    shareInput.value = issuedSharesDrafts.get(stock.id) ?? formatIssuedShares(stock.issuedShares);
+    shareCount.append(shareInput, element('span', '', '주'));
+    item.append(picker, shareCount, actions);
     return item;
   });
   $('stock-list').replaceChildren(...items);
   $('stock-list-empty').hidden = items.length > 0;
   $('stock-list-empty').textContent = stocks.length ? '검색 결과가 없어요.' : '등록된 종목이 없어요.';
+}
+
+function formatIssuedShares(shares) {
+  return shares == null ? '' : shares.toLocaleString('ko-KR');
+}
+
+function parseIssuedShares(value) {
+  const text = value.trim();
+  if (!text) return null;
+  const shares = Number(text.replaceAll(',', ''));
+  if (!/^(?:[0-9]+|[0-9]{1,3}(?:,[0-9]{3})+)$/.test(text) || !Number.isSafeInteger(shares)) {
+    throw new Error('발행주식 수는 0 이상의 정수로 입력해 주세요.');
+  }
+  return shares;
+}
+
+async function commitIssuedShares(input) {
+  if (input.readOnly) return;
+  const stockId = input.dataset.stock;
+  const draft = input.value;
+  input.readOnly = true;
+  try {
+    const issuedShares = parseIssuedShares(draft);
+    const stock = await runWrite(async () => {
+      const saved = await saveIssuedShares(database, stockId, issuedShares);
+      stocks = stocks.map((stock) => stock.id === stockId ? saved : stock);
+      if (issuedSharesDrafts.get(stockId) === draft) issuedSharesDrafts.delete(stockId);
+      notifyOtherTabs();
+      return saved;
+    });
+    const field = input.isConnected ? input : $('stock-list').querySelector(
+      `.issued-shares-input[data-stock="${CSS.escape(stockId)}"]`,
+    );
+    if (field && !issuedSharesDrafts.has(stockId)) {
+      field.value = formatIssuedShares(issuedShares);
+      field.removeAttribute('aria-invalid');
+    }
+    const message = issuedShares === null ? '발행주식 수 기록을 지웠어요.'
+      : `발행주식 수 ${formatIssuedShares(issuedShares)}주 저장했어요.`;
+    setStatus('stock-form-status', `${stock.name} · ${message}`);
+  } catch (error) {
+    input.setAttribute('aria-invalid', 'true');
+    setStatus('stock-form-status', errorMessage(error, '발행주식 수를 저장하지 못했어요.'), true);
+  } finally {
+    input.readOnly = false;
+  }
 }
 
 function toggleColumn(stockId) {
@@ -565,12 +625,13 @@ async function selectBackup(event) {
   setStatus('editor-status');
   try {
     const backup = parseBackup(await file.text());
-    const primary = `현재 종목과 월별 가격 전체가 백업으로 교체돼요.`;
+    const primary = `현재 종목과 발행주식 수, 월별 가격 전체가 백업으로 교체돼요.`;
     const details = `백업에 종목 ${backup.stocks.length}개와 월별 가격 ${backup.prices.length}건이 있어요.`;
     askConfirmation('백업을 복원할까요?', `${primary} ${details}`, '복원', async () => {
       await runWrite(async () => {
         await replaceSnapshot(database, backup);
         drafts.clear();
+        issuedSharesDrafts.clear();
         useSnapshot(backup);
         gridSignature = undefined;
         notifyOtherTabs();
@@ -599,6 +660,31 @@ function wireEvents() {
   });
   $('stock-form').addEventListener('submit', registerStock);
   $('stock-search').addEventListener('input', renderStockList);
+  const stockList = $('stock-list');
+  stockList.addEventListener('input', ({ target }) => {
+    if (!target.matches('.issued-shares-input')) return;
+    issuedSharesDrafts.set(target.dataset.stock, target.value);
+    target.removeAttribute('aria-invalid');
+  });
+  stockList.addEventListener('focusout', ({ target }) => {
+    if (target.matches('.issued-shares-input') && issuedSharesDrafts.has(target.dataset.stock)) {
+      commitIssuedShares(target);
+    }
+  });
+  stockList.addEventListener('keydown', (event) => {
+    if (!event.target.matches('.issued-shares-input') || event.isComposing) return;
+    const inputs = [...stockList.querySelectorAll('.issued-shares-input')];
+    if (event.key === 'Tab' && !event.ctrlKey && !event.altKey && !event.metaKey) {
+      const next = inputs[inputs.indexOf(event.target) + (event.shiftKey ? -1 : 1)];
+      if (!next) return;
+      event.preventDefault();
+      next.focus();
+      next.select();
+    } else if (event.key === 'Enter') {
+      event.preventDefault();
+      commitIssuedShares(event.target);
+    }
+  });
   $('reset-editor-selection').addEventListener('click', () => {
     selected.clear();
     writePreference(editorSelectionKey, []);

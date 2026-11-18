@@ -87,12 +87,24 @@ function findStock(stocks, id, onFound, abort) {
       abort(new Error("이 종목의 기록을 찾을 수 없어요."));
       return;
     }
-    onFound();
+    onFound(request.result);
   };
 }
 
 function isValidPrice(price) {
   return Number.isSafeInteger(price) && price >= 0;
+}
+
+function publicStock({ id, name, issuedShares }) {
+  const stock = { id, name };
+  if (issuedShares != null) stock.issuedShares = issuedShares;
+  return stock;
+}
+
+function validateIssuedShares(issuedShares) {
+  if (!Number.isSafeInteger(issuedShares) || issuedShares < 0) {
+    throw new Error("발행주식 수는 0 이상의 정수로 입력해 주세요.");
+  }
 }
 
 export async function readSnapshot(db) {
@@ -102,7 +114,7 @@ export async function readSnapshot(db) {
     const prices = transaction.objectStore(PRICES).getAll();
 
     stocks.onsuccess = () => {
-      snapshot.stocks = stocks.result.map(({ id, name }) => ({ id, name }));
+      snapshot.stocks = stocks.result.map(publicStock);
     };
     prices.onsuccess = () => { snapshot.prices = prices.result; };
     setResult(snapshot);
@@ -124,12 +136,26 @@ export async function renameStock(db, id, inputName) {
 
   return runTransaction(db, [STOCKS], "readwrite", (transaction, setResult, abort) => {
     const stocks = transaction.objectStore(STOCKS);
-    findStock(stocks, id, () => {
-      const stock = { id, name };
-      stocks.put({ ...stock, nameKey: nameKey(name) });
-      setResult(stock);
+    findStock(stocks, id, (existing) => {
+      const stock = { ...existing, name, nameKey: nameKey(name) };
+      stocks.put(stock);
+      setResult(publicStock(stock));
     }, abort);
   }, DUPLICATE_NAME);
+}
+
+export async function saveIssuedShares(db, stockId, issuedShares) {
+  if (issuedShares !== null) validateIssuedShares(issuedShares);
+
+  return runTransaction(db, [STOCKS], "readwrite", (transaction, setResult, abort) => {
+    const stocks = transaction.objectStore(STOCKS);
+    findStock(stocks, stockId, (stock) => {
+      if (issuedShares === null) delete stock.issuedShares;
+      else stock.issuedShares = issuedShares;
+      stocks.put(stock);
+      setResult(publicStock(stock));
+    }, abort);
+  });
 }
 
 export async function deleteStock(db, id) {
@@ -182,6 +208,7 @@ function validateSnapshot(value) {
       throw new Error(`백업 파일의 ${index + 1}번째 종목 식별자가 올바르지 않아요.`);
     }
     const name = normalizeName(stock.name);
+    if (stock.issuedShares != null) validateIssuedShares(stock.issuedShares);
     const key = nameKey(name);
     if (names.has(key)) {
       throw new Error(`백업 파일에 이름이 같은 종목이 있어요. (${name})`);
@@ -189,7 +216,7 @@ function validateSnapshot(value) {
     stockIds.add(stock.id);
     names.add(key);
     recordedMonths.set(stock.id, new Set());
-    return { id: stock.id, name };
+    return publicStock({ id: stock.id, name, issuedShares: stock.issuedShares });
   });
 
   const prices = value.prices.map((record, index) => {
