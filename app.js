@@ -6,6 +6,7 @@ import {
   openDatabase, readSnapshot, addStock, renameStock, deleteStock, savePrice,
   replaceSnapshot, serializeBackup, parseBackup,
 } from './storage.js';
+import { bindEditorColumnDrag } from './editor-column-drag.js';
 
 const $ = (id) => document.getElementById(id);
 const byName = new Intl.Collator('ko-KR');
@@ -266,6 +267,31 @@ function toggleColumn(stockId) {
   if (startingColumn) scrollToEditorMonth(currentMonth);
 }
 
+function moveEditorColumn(stockId, targetId, after, restoreFocus = false) {
+  if (stockId === targetId || !selected.has(stockId) || !selected.has(targetId)) return;
+
+  const order = [...selected];
+  const from = order.indexOf(stockId);
+  order.splice(from, 1);
+  const to = order.indexOf(targetId) + Number(after);
+  if (from === to) return;
+  order.splice(to, 0, stockId);
+
+  const activeInput = document.activeElement;
+  if (activeInput?.matches('#editor-scroller .price-input')) activeInput.blur();
+
+  selected.clear();
+  for (const id of order) selected.add(id);
+  writePreference(editorSelectionKey, order);
+  renderGrid();
+
+  if (restoreFocus) {
+    const header = $('editor-scroller').querySelector(`th[data-stock-id="${CSS.escape(stockId)}"] .editor-column-name`);
+    header.focus();
+    setStatus('editor-status', `${header.textContent} 열을 ${to + 1}번째로 옮겼어요.`);
+  }
+}
+
 function formatPriceInput(price) {
   return price == null ? '' : formatPrice(price);
 }
@@ -311,6 +337,7 @@ function renderGrid() {
   for (const { id, name } of columns) {
     const th = element('th');
     th.scope = 'col';
+    th.dataset.stockId = id;
     const columnHeader = element('div', 'editor-column');
     const close = button('remove-column', '×', `${name} 편집 열 닫기`);
     close.addEventListener('click', () => {
@@ -318,12 +345,25 @@ function renderGrid() {
       renderStockList();
       $('stock-search').focus();
     });
-    const columnName = element('span', 'editor-column-name', name);
+    const columnName = button('editor-column-name', undefined, `${name} 편집 열 이동`);
+    columnName.append(element('span', 'editor-column-label', name));
     columnName.title = name;
+    columnName.draggable = true;
+    columnName.setAttribute('aria-keyshortcuts', 'ArrowLeft ArrowRight');
+    columnName.addEventListener('keydown', (event) => {
+      if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+      if (event.altKey || event.ctrlKey || event.metaKey) return;
+      const after = event.key === 'ArrowRight';
+      const neighbor = after ? th.nextElementSibling : th.previousElementSibling;
+      if (!neighbor?.dataset.stockId) return;
+      event.preventDefault();
+      moveEditorColumn(id, neighbor.dataset.stockId, after, true);
+    });
     columnHeader.append(columnName, close);
     th.append(columnHeader);
     heading.append(th);
   }
+  bindEditorColumnDrag(heading, scroller, moveEditorColumn);
   const body = table.createTBody();
   for (const month of listMonths(lastMonth)) {
     const row = body.insertRow();

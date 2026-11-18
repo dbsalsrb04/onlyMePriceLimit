@@ -653,6 +653,19 @@ kbd {
   z-index: 4;
 }
 
+.price-grid thead .insert-column-before {
+  box-shadow: inset 3px 0 var(--focus);
+}
+
+.price-grid thead .insert-column-after {
+  box-shadow: inset -3px 0 var(--focus);
+}
+
+.price-grid thead .is-column-dragging {
+  background: var(--surface-active);
+  color: var(--muted);
+}
+
 .editor-column {
   display: flex;
   align-items: center;
@@ -661,7 +674,25 @@ kbd {
 }
 
 .editor-column-name {
+  flex: 1;
   min-width: 0;
+  min-height: 1.6rem;
+  padding: 0.15rem 0;
+  border-color: transparent;
+  border-radius: 4px;
+  background: transparent;
+  text-align: left;
+  font-size: inherit;
+  font-weight: inherit;
+  cursor: grab;
+}
+
+.editor-column-name:active, .is-column-dragging .editor-column-name {
+  cursor: grabbing;
+}
+
+.editor-column-label {
+  display: block;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
