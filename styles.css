@@ -122,11 +122,16 @@ input::placeholder {
 }
 
 .site-header-inner {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
   min-height: 4rem;
   align-items: center;
-  justify-content: space-between;
   gap: 0.75rem;
+  padding-block: 0.75rem;
+}
+
+.site-header-inner nav {
+  justify-self: center;
 }
 
 .site-title {
@@ -503,7 +508,7 @@ table {
   gap: 0.4rem;
   overflow: auto;
   margin-top: 0.8rem;
-  padding: 0;
+  padding: 0.4rem 0.4rem 1rem;
   list-style: none;
 }
 
@@ -524,6 +529,23 @@ table {
   cursor: pointer;
 }
 
+.stock-list-item:hover,
+.stock-list-item:has(.stock-picker[aria-pressed="true"]) {
+  border-color: var(--border-strong);
+  background: var(--surface-active);
+}
+
+.stock-list-item:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 10px 16px -9px rgb(255 255 255 / 45%);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .stock-list-item {
+    transition: transform 150ms ease-out, box-shadow 150ms ease-out, background-color 150ms ease-out;
+  }
+}
+
 .stock-picker,
 .stock-list-actions button {
   min-height: 1.8rem;
@@ -540,9 +562,9 @@ table {
   font-size: 0.875rem;
 }
 
-.stock-picker[aria-pressed="true"] {
-  border-color: var(--border-strong);
-  background: var(--surface-active);
+.stock-picker:hover:not(:disabled) {
+  border-color: transparent;
+  background: transparent;
 }
 
 .stock-list-actions {
@@ -801,6 +823,7 @@ dialog p:not(.status) {
 }
 
 @media (min-width: 40rem) {
+  .site-header-inner { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); }
   .view-header { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); }
 }
 
