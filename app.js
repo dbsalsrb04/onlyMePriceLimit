@@ -19,7 +19,7 @@ const preferences = readPreference(preferencesKey) ?? {};
 let currentMonth = isValidMonth(preferences.month) ? preferences.month : FIRST_MONTH;
 let lastMonth = INITIAL_LAST_MONTH;
 let viewType = preferences.view === 'table' ? 'table' : 'cards';
-let sortMode = 'name';
+let sortMode = ['name', 'desc', 'asc'].includes(preferences.sort) ? preferences.sort : 'desc';
 let activePage = 'view';
 let database;
 let stocks = [];
@@ -51,7 +51,7 @@ function writePreference(key, value) {
 }
 
 function savePreferences() {
-  writePreference(preferencesKey, { month: currentMonth, view: viewType });
+  writePreference(preferencesKey, { month: currentMonth, view: viewType, sort: sortMode });
 }
 
 function readEditorSelection() {
@@ -716,9 +716,14 @@ function wireEvents() {
   $('next-month').addEventListener('click', () => moveMonth(1));
   $('view-cards').addEventListener('click', () => setView('cards'));
   $('view-table').addEventListener('click', () => setView('table'));
-  $('sort-name').addEventListener('click', () => { sortMode = 'name'; renderMarket(); });
+  $('sort-name').addEventListener('click', () => {
+    sortMode = 'name';
+    savePreferences();
+    renderMarket();
+  });
   $('sort-rate').addEventListener('click', () => {
     sortMode = { name: 'desc', desc: 'asc', asc: 'name' }[sortMode];
+    savePreferences();
     renderMarket();
   });
   $('stock-form').addEventListener('submit', registerStock);
