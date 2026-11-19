@@ -1004,9 +1004,9 @@ kbd {
   align-items: center;
   justify-content: center;
   padding: 0.35rem;
-  border-color: transparent;
-  background: transparent;
-  color: var(--muted);
+  border-color: #62656b;
+  background: #62656b;
+  color: #fff;
 }
 
 .bet-edit svg, .bet-save svg {
@@ -1017,9 +1017,18 @@ kbd {
 }
 
 .bet-save {
-  border-color: var(--border-strong);
-  background: var(--surface-active);
-  color: var(--text);
+  border-color: #247340;
+  background: #247340;
+}
+
+.bet-edit:hover:not(:disabled) {
+  border-color: #73767d;
+  background: #73767d;
+}
+
+.bet-save:hover:not(:disabled) {
+  border-color: #2b864b;
+  background: #2b864b;
 }
 
 .bet-field input.bet-input {
@@ -1056,8 +1065,15 @@ kbd {
   min-height: 1.85rem;
   padding: 0.2rem 0.55rem;
   transform: translateY(-50%);
-  color: var(--muted);
+  border-color: #b1323e;
+  background: #b1323e;
+  color: #fff;
   font-size: 0.75rem;
+}
+
+.bet-delete:hover:not(:disabled) {
+  border-color: #c43c49;
+  background: #c43c49;
 }
 
 .bet-separator {
