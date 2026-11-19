@@ -1,8 +1,9 @@
 import { isValidMonth } from "./market.js";
 
-const BACKUP_VERSION = 1;
+const BACKUP_VERSION = 2;
 const STOCKS = "stocks";
 const PRICES = "prices";
+const BETS = "bets";
 const STOCK_BY_NAME = "byName";
 const PRICE_BY_STOCK = "byStock";
 const DUPLICATE_NAME = "같은 이름의 종목이 이미 있어요.";
@@ -12,16 +13,29 @@ export async function openDatabase() {
   const sitePath = pagePath.replace(/\/index\.html$|\/$/, "");
 
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open(`onlyMePriceLimit${sitePath}`, 1);
+    const request = indexedDB.open(`onlyMePriceLimit${sitePath}`, 2);
     let blocked = false;
 
     request.onupgradeneeded = () => {
       const db = request.result;
-      const stocks = db.createObjectStore(STOCKS, { keyPath: "id" });
-      stocks.createIndex(STOCK_BY_NAME, "nameKey", { unique: true });
+      const stocks = db.objectStoreNames.contains(STOCKS)
+        ? request.transaction.objectStore(STOCKS)
+        : db.createObjectStore(STOCKS, { keyPath: "id" });
+      if (!stocks.indexNames.contains(STOCK_BY_NAME)) {
+        stocks.createIndex(STOCK_BY_NAME, "nameKey", { unique: true });
+      }
 
-      const prices = db.createObjectStore(PRICES, { keyPath: ["stockId", "month"] });
-      prices.createIndex(PRICE_BY_STOCK, "stockId");
+      const prices = db.objectStoreNames.contains(PRICES)
+        ? request.transaction.objectStore(PRICES)
+        : db.createObjectStore(PRICES, { keyPath: ["stockId", "month"] });
+      if (!prices.indexNames.contains(PRICE_BY_STOCK)) {
+        prices.createIndex(PRICE_BY_STOCK, "stockId");
+      }
+
+      if (!db.objectStoreNames.contains(BETS)) {
+        const bets = db.createObjectStore(BETS, { keyPath: "id" });
+        bets.add({ id: crypto.randomUUID(), title: "제목", question: "질문", answer: "정답!!", order: 0 });
+      }
     };
     request.onblocked = () => {
       blocked = true;
@@ -108,15 +122,17 @@ function validateIssuedShares(issuedShares) {
 }
 
 export async function readSnapshot(db) {
-  return runTransaction(db, [STOCKS, PRICES], "readonly", (transaction, setResult) => {
-    const snapshot = { stocks: [], prices: [] };
+  return runTransaction(db, [STOCKS, PRICES, BETS], "readonly", (transaction, setResult) => {
+    const snapshot = { stocks: [], prices: [], bets: [] };
     const stocks = transaction.objectStore(STOCKS).getAll();
     const prices = transaction.objectStore(PRICES).getAll();
+    const bets = transaction.objectStore(BETS).getAll();
 
     stocks.onsuccess = () => {
       snapshot.stocks = stocks.result.map(publicStock);
     };
     prices.onsuccess = () => { snapshot.prices = prices.result; };
+    bets.onsuccess = () => { snapshot.bets = sortBets(bets.result); };
     setResult(snapshot);
   });
 }
@@ -195,6 +211,79 @@ export async function savePrice(db, stockId, month, price) {
   });
 }
 
+function validateBetField(field, value) {
+  if (!["title", "question", "answer"].includes(field) || typeof value !== "string") {
+    throw new Error("베팅의 제목, 질문, 정답은 텍스트로 입력해 주세요.");
+  }
+}
+
+function sortBets(bets) {
+  return bets.sort((a, b) => a.order - b.order || a.id.localeCompare(b.id));
+}
+
+export async function addBet(db, { title, question, answer }) {
+  const fields = { title, question, answer };
+  for (const [field, value] of Object.entries(fields)) validateBetField(field, value);
+
+  return runTransaction(db, [BETS], "readwrite", (transaction, setResult, abort) => {
+    const bets = transaction.objectStore(BETS);
+    const request = bets.getAll();
+    request.onsuccess = () => {
+      const order = request.result.reduce((last, bet) => Math.max(last, bet.order), -1) + 1;
+      if (!Number.isSafeInteger(order)) {
+        abort(new Error("베팅 항목 순서를 더 추가할 수 없어요."));
+        return;
+      }
+      const bet = { id: crypto.randomUUID(), ...fields, order };
+      bets.add(bet);
+      setResult(bet);
+    };
+  });
+}
+
+export async function saveBetField(db, id, field, value) {
+  validateBetField(field, value);
+
+  return runTransaction(db, [BETS], "readwrite", (transaction, setResult, abort) => {
+    const bets = transaction.objectStore(BETS);
+    const request = bets.get(id);
+    request.onsuccess = () => {
+      if (!request.result) {
+        abort(new Error("이 베팅 항목을 찾을 수 없어요."));
+        return;
+      }
+      const bet = { ...request.result, [field]: value };
+      bets.put(bet);
+      setResult(bet);
+    };
+  });
+}
+
+export async function deleteBet(db, id) {
+  return runTransaction(db, [BETS], "readwrite", (transaction) => {
+    transaction.objectStore(BETS).delete(id);
+  });
+}
+
+function validateBets(value = []) {
+  if (!Array.isArray(value)) {
+    throw new Error("백업 파일의 베팅 목록이 올바르지 않아요.");
+  }
+  const ids = new Set();
+  const bets = value.map((bet, index) => {
+    if (typeof bet?.id !== "string" || !bet.id.trim() || ids.has(bet.id)
+      || !Number.isSafeInteger(bet.order) || bet.order < 0) {
+      throw new Error(`백업 파일의 ${index + 1}번째 베팅 항목이 올바르지 않아요.`);
+    }
+    validateBetField("title", bet.title);
+    validateBetField("question", bet.question);
+    validateBetField("answer", bet.answer);
+    ids.add(bet.id);
+    return { id: bet.id, title: bet.title, question: bet.question, answer: bet.answer, order: bet.order };
+  });
+  return sortBets(bets);
+}
+
 function validateSnapshot(value) {
   if (!value || !Array.isArray(value.stocks) || !Array.isArray(value.prices)) {
     throw new Error("백업 파일의 종목 또는 가격 목록이 올바르지 않아요.");
@@ -231,17 +320,19 @@ function validateSnapshot(value) {
     return { stockId: record.stockId, month: record.month, price: record.price };
   });
 
-  return { stocks, prices };
+  return { stocks, prices, bets: validateBets(value.bets) };
 }
 
 export async function replaceSnapshot(db, snapshot) {
   const replacement = validateSnapshot(snapshot);
 
-  return runTransaction(db, [STOCKS, PRICES], "readwrite", (transaction) => {
+  return runTransaction(db, [STOCKS, PRICES, BETS], "readwrite", (transaction) => {
     const stocks = transaction.objectStore(STOCKS);
     const prices = transaction.objectStore(PRICES);
+    const bets = transaction.objectStore(BETS);
     stocks.clear();
     prices.clear();
+    bets.clear();
 
     for (const stock of replacement.stocks) {
       stocks.add({ ...stock, nameKey: nameKey(stock.name) });
@@ -249,11 +340,14 @@ export async function replaceSnapshot(db, snapshot) {
     for (const price of replacement.prices) {
       prices.add(price);
     }
+    for (const bet of replacement.bets) {
+      bets.add(bet);
+    }
   });
 }
 
-export function serializeBackup({ stocks, prices }) {
-  return JSON.stringify({ version: BACKUP_VERSION, stocks, prices }, null, 2);
+export function serializeBackup({ stocks, prices, bets = [] }) {
+  return JSON.stringify({ version: BACKUP_VERSION, stocks, prices, bets }, null, 2);
 }
 
 export function parseBackup(text) {
@@ -263,8 +357,12 @@ export function parseBackup(text) {
   } catch {
     throw new Error("백업 파일을 읽을 수 없어요. JSON 백업 파일을 선택해 주세요.");
   }
-  if (value?.version !== BACKUP_VERSION) {
+  if (value?.version !== 1 && value?.version !== BACKUP_VERSION) {
     throw new Error("지원하는 백업 파일 형식이 아니에요.");
+  }
+  if (value.version === 1) return validateSnapshot({ ...value, bets: [] });
+  if (!Array.isArray(value.bets)) {
+    throw new Error("백업 파일의 베팅 목록이 올바르지 않아요.");
   }
   return validateSnapshot(value);
 }

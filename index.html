@@ -16,9 +16,10 @@
           <span class="site-mark" aria-hidden="true"><i></i><i></i><i></i></span>
           <span>나 혼자만 상한가</span>
         </div>
-        <nav aria-label="화면 전환">
-          <button type="button" class="nav-button" id="open-editor">데이터 편집</button>
-          <button type="button" class="nav-button" id="open-view" hidden>조회</button>
+        <nav class="site-tabs" role="tablist" aria-label="화면 선택">
+          <button type="button" class="nav-button" id="open-view" role="tab" aria-selected="true" aria-controls="view">조회</button>
+          <button type="button" class="nav-button" id="open-editor" role="tab" aria-selected="false" aria-controls="editor" tabindex="-1">편집</button>
+          <button type="button" class="nav-button" id="open-bets" role="tab" aria-selected="false" aria-controls="bets" tabindex="-1">베팅</button>
         </nav>
       </div>
     </header>
@@ -27,7 +28,7 @@
       <p id="app-status" class="status app-status" role="status"></p>
       <noscript><p class="status status-error">이 페이지를 사용하려면 자바스크립트를 활성화해 주세요.</p></noscript>
 
-      <section id="view" aria-labelledby="view-heading">
+      <section id="view" role="tabpanel" aria-labelledby="open-view">
         <header class="page-header view-header">
           <h1 id="view-heading" tabindex="-1">조회</h1>
           <div class="month-controls" role="group" aria-label="조회 연월">
@@ -84,9 +85,9 @@
         </section>
       </section>
 
-      <section id="editor" aria-labelledby="editor-heading" hidden>
+      <section id="editor" role="tabpanel" aria-labelledby="open-editor" hidden>
         <header class="page-header editor-header">
-          <h1 id="editor-heading" tabindex="-1">데이터 편집</h1>
+          <h1 id="editor-heading" tabindex="-1">편집</h1>
           <div class="backup-controls" role="group" aria-label="데이터 백업">
             <button type="button" id="export-backup">백업 내보내기</button>
             <button type="button" id="import-backup">백업 복원</button>
@@ -126,6 +127,15 @@
           <div id="editor-scroller" class="editor-scroller scroll-region" role="region" aria-label="월별 가격 입력" tabindex="0" hidden></div>
           <p id="editor-empty" class="empty-state">목록에서 편집할 종목을 선택해 주세요.</p>
         </section>
+      </section>
+
+      <section id="bets" role="tabpanel" aria-labelledby="open-bets" hidden>
+        <header class="bets-header">
+          <h1 id="bets-heading" tabindex="-1">베팅</h1>
+        </header>
+        <div id="bet-list" class="bet-records"></div>
+        <button type="button" id="add-bet">추가하기</button>
+        <p id="bet-status" class="status" role="status"></p>
       </section>
     </main>
 

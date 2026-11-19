@@ -4,10 +4,11 @@ import {
 } from './market.js';
 import {
   openDatabase, readSnapshot, addStock, renameStock, deleteStock, savePrice, saveIssuedShares,
-  replaceSnapshot, serializeBackup, parseBackup,
+  addBet, saveBetField, deleteBet, replaceSnapshot, serializeBackup, parseBackup,
 } from './storage.js';
 import { bindEditorColumnDrag } from './editor-column-drag.js';
 import { bindDatePicker } from './date-picker.js';
+import { bindBettingEditor } from './betting-editor.js';
 
 const $ = (id) => document.getElementById(id);
 const byName = new Intl.Collator('ko-KR');
@@ -22,6 +23,7 @@ let sortMode = 'name';
 let activePage = 'view';
 let database;
 let stocks = [];
+let bets = [];
 let pricesByStock = new Map();
 const selected = new Set(readEditorSelection());
 const drafts = new Map();
@@ -30,6 +32,7 @@ let gridSignature;
 let pendingWrite = Promise.resolve();
 let tabUpdates;
 let datePicker;
+let bettingEditor;
 
 function readPreference(key) {
   try {
@@ -83,6 +86,7 @@ function errorMessage(error, fallback) {
 
 function useSnapshot(snapshot) {
   stocks = snapshot.stocks;
+  bets = snapshot.bets ?? [];
   pricesByStock = new Map(stocks.map(({ id }) => [id, new Map()]));
   lastMonth = INITIAL_LAST_MONTH;
   for (const { stockId, month, price } of snapshot.prices) {
@@ -206,20 +210,24 @@ function setView(view) {
 
 function openPage(page) {
   datePicker.close();
+  bettingEditor.cancel();
   activePage = page;
-  $('view').hidden = page !== 'view';
-  $('editor').hidden = page !== 'editor';
-  $('open-editor').hidden = page === 'editor';
-  $('open-view').hidden = page === 'view';
+  for (const name of ['view', 'editor', 'bets']) {
+    $(name).hidden = page !== name;
+    const tab = $(`open-${name}`);
+    tab.setAttribute('aria-selected', String(page === name));
+    tab.tabIndex = page === name ? 0 : -1;
+  }
   if (page === 'view') {
     renderMarket();
-    $('open-editor').focus();
-  } else {
+  } else if (page === 'editor') {
     renderStockList();
     renderGrid();
     scrollToEditorMonth(currentMonth);
-    $('open-view').focus();
+  } else {
+    bettingEditor.render(bets);
   }
+  $(`open-${page}`).focus();
 }
 
 function runWrite(operation) {
@@ -234,10 +242,43 @@ function notifyOtherTabs() {
 
 function refreshPage() {
   if (activePage === 'view') renderMarket();
-  else {
+  else if (activePage === 'editor') {
     renderStockList();
     renderGrid();
+  } else {
+    bettingEditor.render(bets);
   }
+}
+
+async function registerBet() {
+  const add = $('add-bet');
+  add.disabled = true;
+  setStatus('bet-status');
+  try {
+    await runWrite(async () => {
+      const bet = await addBet(database, { title: '제목', question: '질문', answer: '정답!!' });
+      bets.push(bet);
+      notifyOtherTabs();
+    });
+    bettingEditor.render(bets);
+  } catch (error) {
+    setStatus('bet-status', errorMessage(error, '베팅 기록을 추가하지 못했어요.'), true);
+  } finally {
+    add.disabled = false;
+  }
+}
+
+function beginBetDeletion(bet) {
+  askConfirmation('베팅 기록을 삭제할까요?', `‘${bet.title || '제목 없음'}’의 제목, 질문, 정답이 함께 삭제돼요.`, '삭제', async () => {
+    await runWrite(async () => {
+      await deleteBet(database, bet.id);
+      useSnapshot(await readSnapshot(database));
+      notifyOtherTabs();
+    });
+    refreshPage();
+    setStatus('bet-status', '베팅 기록을 삭제했어요.');
+    return $('add-bet');
+  });
 }
 
 function renderStockList() {
@@ -599,7 +640,7 @@ async function confirmAction() {
   try {
     nextFocus = await confirmOperation();
   } catch (error) {
-    setStatus('editor-status', errorMessage(error, '변경 사항을 저장하지 못했어요.'), true);
+    setStatus(activePage === 'bets' ? 'bet-status' : 'editor-status', errorMessage(error, '변경 사항을 저장하지 못했어요.'), true);
   } finally {
     action.disabled = cancel.disabled = false;
     dialog.close();
@@ -632,8 +673,8 @@ async function selectBackup(event) {
   setStatus('editor-status');
   try {
     const backup = parseBackup(await file.text());
-    const primary = `현재 종목과 발행주식 수, 월별 가격 전체가 백업으로 교체돼요.`;
-    const details = `백업에 종목 ${backup.stocks.length}개와 월별 가격 ${backup.prices.length}건이 있어요.`;
+    const primary = `현재 종목과 발행주식 수, 월별 가격, 베팅 기록 전체가 백업으로 교체돼요.`;
+    const details = `백업에 종목 ${backup.stocks.length}개, 월별 가격 ${backup.prices.length}건, 베팅 기록 ${backup.bets.length}건이 있어요.`;
     askConfirmation('백업을 복원할까요?', `${primary} ${details}`, '복원', async () => {
       await runWrite(async () => {
         await replaceSnapshot(database, backup);
@@ -654,8 +695,23 @@ async function selectBackup(event) {
 }
 
 function wireEvents() {
-  $('open-editor').addEventListener('click', () => openPage('editor'));
-  $('open-view').addEventListener('click', () => openPage('view'));
+  const pages = ['view', 'editor', 'bets'];
+  for (const page of pages) {
+    $(`open-${page}`).addEventListener('click', () => openPage(page));
+  }
+  document.querySelector('[role="tablist"]').addEventListener('keydown', (event) => {
+    if (event.altKey || event.ctrlKey || event.metaKey) return;
+    const index = pages.indexOf(activePage);
+    let next;
+    if (event.key === 'ArrowRight') next = pages[(index + 1) % pages.length];
+    else if (event.key === 'ArrowLeft') next = pages[(index + pages.length - 1) % pages.length];
+    else if (event.key === 'Home') next = pages[0];
+    else if (event.key === 'End') next = pages.at(-1);
+    if (!next) return;
+    event.preventDefault();
+    openPage(next);
+  });
+  $('add-bet').addEventListener('click', registerBet);
   $('previous-month').addEventListener('click', () => moveMonth(-1));
   $('next-month').addEventListener('click', () => moveMonth(1));
   $('view-cards').addEventListener('click', () => setView('cards'));
@@ -756,8 +812,19 @@ try {
     onSelect: selectMonth,
     firstMonth: FIRST_MONTH,
   });
+  bettingEditor = bindBettingEditor({
+    list: $('bet-list'),
+    onSave: (id, field, value) => runWrite(async () => {
+      const saved = await saveBetField(database, id, field, value);
+      bets = bets.map((bet) => bet.id === id ? saved : bet);
+      notifyOtherTabs();
+      return saved;
+    }),
+    onDelete: beginBetDeletion,
+  });
   renderMarket();
 } catch (error) {
   setStatus('app-status', errorMessage(error, '브라우저의 저장소를 열지 못했어요. 페이지를 다시 열어 주세요.'), true);
   $('open-editor').disabled = true;
+  $('open-bets').disabled = true;
 }
