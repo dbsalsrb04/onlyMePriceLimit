@@ -284,6 +284,13 @@ input::placeholder {
   font-weight: 500;
 }
 
+.date-picker button.date-month {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
 .date-picker button.date-option:hover {
   background: var(--surface-active);
 }
@@ -297,6 +304,10 @@ input::placeholder {
 .date-picker.is-compact-months .date-months {
   width: 6.5rem;
   grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.date-picker.is-compact-months button.date-month {
+  padding-inline: 0;
 }
 
 .leader-section > h2 {
