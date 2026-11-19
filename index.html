@@ -21,8 +21,19 @@
           <button type="button" class="nav-button" id="open-editor" role="tab" aria-selected="false" aria-controls="editor" tabindex="-1">편집</button>
           <button type="button" class="nav-button" id="open-bets" role="tab" aria-selected="false" aria-controls="bets" tabindex="-1">베팅</button>
         </nav>
+        <div class="backup-controls" role="group" aria-label="데이터 백업">
+          <button type="button" id="export-backup">백업 내보내기</button>
+          <button type="button" id="import-backup">백업 복원</button>
+          <input type="file" id="backup-file" accept=".json,application/json" aria-label="JSON 백업 파일" hidden>
+        </div>
       </div>
     </header>
+
+    <aside id="backup-toast" class="backup-toast" role="status" aria-live="polite" aria-atomic="true" hidden>
+      <strong>백업을 복원했어요.</strong>
+      <p id="backup-toast-file" class="backup-toast-file"></p>
+      <p id="backup-toast-details"></p>
+    </aside>
 
     <main class="workspace">
       <p id="app-status" class="status app-status" role="status"></p>
@@ -88,11 +99,6 @@
       <section id="editor" role="tabpanel" aria-labelledby="open-editor" hidden>
         <header class="page-header editor-header">
           <h1 id="editor-heading" tabindex="-1">편집</h1>
-          <div class="backup-controls" role="group" aria-label="데이터 백업">
-            <button type="button" id="export-backup">백업 내보내기</button>
-            <button type="button" id="import-backup">백업 복원</button>
-            <input type="file" id="backup-file" accept=".json,application/json" aria-label="JSON 백업 파일" hidden>
-          </div>
         </header>
 
         <section class="stock-management" aria-labelledby="stock-management-heading">

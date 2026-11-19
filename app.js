@@ -33,6 +33,7 @@ let pendingWrite = Promise.resolve();
 let tabUpdates;
 let datePicker;
 let bettingEditor;
+let backupToastTimer;
 
 function readPreference(key) {
   try {
@@ -649,7 +650,7 @@ async function confirmAction() {
 }
 
 async function exportBackup() {
-  setStatus('editor-status');
+  setStatus('app-status');
   try {
     await pendingWrite;
     const text = serializeBackup(await readSnapshot(database));
@@ -660,9 +661,9 @@ async function exportBackup() {
     link.download = `only-me-price-limit-${date}.json`;
     link.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
-    setStatus('editor-status', '백업 파일을 내려받았어요.');
+    setStatus('app-status', '백업 파일을 내려받았어요.');
   } catch (error) {
-    setStatus('editor-status', errorMessage(error, '백업을 내보내지 못했어요.'), true);
+    setStatus('app-status', errorMessage(error, '백업을 내보내지 못했어요.'), true);
   }
 }
 
@@ -670,27 +671,30 @@ async function selectBackup(event) {
   const file = event.currentTarget.files[0];
   event.currentTarget.value = '';
   if (!file) return;
-  setStatus('editor-status');
+  setStatus('app-status');
+  clearTimeout(backupToastTimer);
+  $('backup-toast').hidden = true;
+  $('import-backup').disabled = true;
   try {
     const backup = parseBackup(await file.text());
-    const primary = `현재 종목과 발행주식 수, 월별 가격, 베팅 기록 전체가 백업으로 교체돼요.`;
-    const details = `백업에 종목 ${backup.stocks.length}개, 월별 가격 ${backup.prices.length}건, 베팅 기록 ${backup.bets.length}건이 있어요.`;
-    askConfirmation('백업을 복원할까요?', `${primary} ${details}`, '복원', async () => {
-      await runWrite(async () => {
-        await replaceSnapshot(database, backup);
-        drafts.clear();
-        issuedSharesDrafts.clear();
-        useSnapshot(backup);
-        gridSignature = undefined;
-        notifyOtherTabs();
-      });
-      savePreferences();
-      refreshPage();
-      setStatus('editor-status', '백업을 복원했어요.');
-      return $('import-backup');
+    await runWrite(async () => {
+      await replaceSnapshot(database, backup);
+      drafts.clear();
+      issuedSharesDrafts.clear();
+      useSnapshot(backup);
+      gridSignature = undefined;
+      notifyOtherTabs();
     });
+    savePreferences();
+    refreshPage();
+    $('backup-toast-file').textContent = file.name;
+    $('backup-toast-details').textContent = `종목 ${backup.stocks.length.toLocaleString('ko-KR')}개 · 월별 가격 ${backup.prices.length.toLocaleString('ko-KR')}건 · 베팅 기록 ${backup.bets.length.toLocaleString('ko-KR')}건`;
+    $('backup-toast').hidden = false;
+    backupToastTimer = setTimeout(() => { $('backup-toast').hidden = true; }, 5000);
   } catch (error) {
-    setStatus('editor-status', errorMessage(error, '백업 파일을 읽지 못했어요.'), true);
+    setStatus('app-status', errorMessage(error, '백업을 복원하지 못했어요.'), true);
+  } finally {
+    $('import-backup').disabled = false;
   }
 }
 
@@ -832,4 +836,6 @@ try {
   setStatus('app-status', errorMessage(error, '브라우저의 저장소를 열지 못했어요. 페이지를 다시 열어 주세요.'), true);
   $('open-editor').disabled = true;
   $('open-bets').disabled = true;
+  $('export-backup').disabled = true;
+  $('import-backup').disabled = true;
 }
