@@ -27,13 +27,12 @@
           <input type="file" id="backup-file" accept=".json,application/json" aria-label="JSON 백업 파일" hidden>
         </div>
       </div>
+      <aside id="backup-toast" class="backup-toast" role="status" aria-live="polite" aria-atomic="true" hidden>
+        <strong>백업을 복원했어요.</strong>
+        <p id="backup-toast-file" class="backup-toast-file"></p>
+        <p id="backup-toast-details"></p>
+      </aside>
     </header>
-
-    <aside id="backup-toast" class="backup-toast" role="status" aria-live="polite" aria-atomic="true" hidden>
-      <strong>백업을 복원했어요.</strong>
-      <p id="backup-toast-file" class="backup-toast-file"></p>
-      <p id="backup-toast-details"></p>
-    </aside>
 
     <main class="workspace">
       <p id="app-status" class="status app-status" role="status"></p>

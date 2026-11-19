@@ -909,8 +909,8 @@ kbd {
 }
 
 .backup-toast {
-  position: fixed;
-  top: 1rem;
+  position: absolute;
+  top: calc(100% + 0.75rem);
   right: 1rem;
   z-index: 20;
   width: min(23rem, calc(100% - 2rem));
