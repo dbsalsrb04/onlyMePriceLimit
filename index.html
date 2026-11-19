@@ -18,7 +18,7 @@
         </div>
         <nav aria-label="화면 전환">
           <button type="button" class="nav-button" id="open-editor">데이터 편집</button>
-          <button type="button" class="nav-button" id="open-view" hidden>월별 조회</button>
+          <button type="button" class="nav-button" id="open-view" hidden>조회</button>
         </nav>
       </div>
     </header>
@@ -29,10 +29,16 @@
 
       <section id="view" aria-labelledby="view-heading">
         <header class="page-header view-header">
-          <h1 id="view-heading" tabindex="-1">월별 조회</h1>
+          <h1 id="view-heading" tabindex="-1">조회</h1>
           <div class="month-controls" role="group" aria-label="조회 연월">
             <button type="button" class="month-arrow" id="previous-month" aria-label="이전 달" disabled>‹</button>
-            <p id="current-month" class="current-month" aria-live="polite">1998년 3월</p>
+            <div class="month-select">
+              <button type="button" id="current-month" class="current-month" aria-live="polite" aria-expanded="false" aria-haspopup="dialog" aria-controls="date-picker">1998년 3월</button>
+              <div id="date-picker" class="date-picker" role="dialog" aria-label="조회 연월 선택" hidden>
+                <div id="date-years" class="date-years" role="group" aria-label="연도 선택"></div>
+                <div id="date-months" class="date-months" role="group" aria-label="월 선택" hidden></div>
+              </div>
+            </div>
             <button type="button" class="month-arrow" id="next-month" aria-label="다음 달">›</button>
           </div>
         </header>

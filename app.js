@@ -7,6 +7,7 @@ import {
   replaceSnapshot, serializeBackup, parseBackup,
 } from './storage.js';
 import { bindEditorColumnDrag } from './editor-column-drag.js';
+import { bindDatePicker } from './date-picker.js';
 
 const $ = (id) => document.getElementById(id);
 const byName = new Intl.Collator('ko-KR');
@@ -28,6 +29,7 @@ const issuedSharesDrafts = new Map();
 let gridSignature;
 let pendingWrite = Promise.resolve();
 let tabUpdates;
+let datePicker;
 
 function readPreference(key) {
   try {
@@ -183,13 +185,17 @@ function renderMarket() {
   }
 }
 
+function selectMonth(month) {
+  if (!isValidMonth(month) || month > lastMonth) return;
+  datePicker.close();
+  currentMonth = month;
+  savePreferences();
+  renderMarket();
+}
+
 function moveMonth(amount) {
   const month = shiftMonth(currentMonth, amount);
-  if (month && month <= lastMonth) {
-    currentMonth = month;
-    savePreferences();
-    renderMarket();
-  }
+  if (month) selectMonth(month);
 }
 
 function setView(view) {
@@ -199,6 +205,7 @@ function setView(view) {
 }
 
 function openPage(page) {
+  datePicker.close();
   activePage = page;
   $('view').hidden = page !== 'view';
   $('editor').hidden = page !== 'editor';
@@ -739,6 +746,16 @@ try {
     });
   }
   wireEvents();
+  datePicker = bindDatePicker({
+    trigger: $('current-month'),
+    panel: $('date-picker'),
+    years: $('date-years'),
+    months: $('date-months'),
+    getMonth: () => currentMonth,
+    getLastMonth: () => lastMonth,
+    onSelect: selectMonth,
+    firstMonth: FIRST_MONTH,
+  });
   renderMarket();
 } catch (error) {
   setStatus('app-status', errorMessage(error, '브라우저의 저장소를 열지 못했어요. 페이지를 다시 열어 주세요.'), true);

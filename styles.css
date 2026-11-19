@@ -222,12 +222,81 @@ input::placeholder {
   line-height: 1;
 }
 
+.month-select {
+  position: relative;
+  min-width: 0;
+}
+
 .current-month {
+  width: 100%;
+  min-height: var(--month-arrow-size);
+  padding: 0.15rem;
+  border-color: transparent;
+  background: transparent;
   text-align: center;
   font-size: clamp(1.375rem, 3.5vw, 2rem);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+
+.date-picker {
+  position: absolute;
+  z-index: 5;
+  top: calc(100% + 0.5rem);
+  left: 0;
+  display: flex;
+  width: max-content;
+  align-items: flex-start;
+  gap: 0.35rem;
+}
+
+.date-years,
+.date-months {
+  display: grid;
+  flex: none;
+  padding: 0.35rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface-raised);
+  box-shadow: 0 0.6rem 1.6rem rgb(0 0 0 / 35%);
+}
+
+.date-years {
+  width: 6rem;
+  max-height: min(21rem, var(--date-picker-space, 21rem));
+  overflow-y: auto;
+  scrollbar-color: var(--border-strong) var(--surface-raised);
+}
+
+.date-months {
+  width: 5rem;
+}
+
+.date-picker button.date-option {
+  min-width: 0;
+  min-height: 1.65rem;
+  padding: 0.15rem 0.3rem;
+  border-color: transparent;
+  border-radius: 4px;
+  background: transparent;
+  font-size: 0.8125rem;
+  font-weight: 500;
+}
+
+.date-picker button.date-option:hover {
+  background: var(--surface-active);
+}
+
+.date-picker button.date-option[aria-pressed="true"] {
+  border-color: var(--focus);
+  background: var(--surface-active);
+  color: var(--text);
+}
+
+.date-picker.is-compact-months .date-months {
+  width: 6.5rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .leader-section > h2 {
