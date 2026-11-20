@@ -656,9 +656,16 @@ async function exportBackup() {
     const text = serializeBackup(await readSnapshot(database));
     const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
     const link = element('a');
-    const date = new Intl.DateTimeFormat('sv-SE', { dateStyle: 'short' }).format(new Date());
+    const timestamp = new Intl.DateTimeFormat('en-GB', {
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit',
+      fractionalSecondDigits: 2, hourCycle: 'h23',
+    });
+    const { year, month, day, hour, minute, second, fractionalSecond } = Object.fromEntries(
+      timestamp.formatToParts(new Date()).map(({ type, value }) => [type, value]),
+    );
     link.href = url;
-    link.download = `only-me-price-limit-${date}.json`;
+    link.download = `backup_${year}-${month}-${day}-${hour}${minute}${second}${fractionalSecond}.json`;
     link.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
     setStatus('app-status', '백업 파일을 내려받았어요.');
