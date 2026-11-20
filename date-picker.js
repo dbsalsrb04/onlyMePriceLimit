@@ -1,4 +1,4 @@
-export function bindDatePicker({ trigger, panel, years, months, getMonth, getLastMonth, onSelect, firstMonth }) {
+export function bindDatePicker({ trigger, panel, years, months, getMonth, getFirstMonth, getLastMonth, onSelect }) {
   let selectedYear;
 
   trigger.setAttribute('aria-haspopup', 'dialog');
@@ -51,7 +51,7 @@ export function bindDatePicker({ trigger, panel, years, months, getMonth, getLas
     const lastYear = Math.max(2026, Number(getLastMonth().slice(0, 4)));
     const buttons = [];
     selectedYear = currentYear;
-    for (let year = Number(firstMonth.slice(0, 4)); year <= lastYear; year += 1) {
+    for (let year = Number(getFirstMonth().slice(0, 4)); year <= lastYear; year += 1) {
       const button = option(`${year}년`, `${year}년`, year === currentYear);
       button.classList.add('date-year');
       button.dataset.year = year;
@@ -80,6 +80,7 @@ export function bindDatePicker({ trigger, panel, years, months, getMonth, getLas
       button.setAttribute('aria-expanded', String(selected));
     }
     const currentMonth = getMonth();
+    const firstMonth = getFirstMonth();
     const lastMonth = getLastMonth();
     const buttons = [];
     for (let month = 1; month <= 12; month += 1) {
@@ -128,7 +129,7 @@ export function bindDatePicker({ trigger, panel, years, months, getMonth, getLas
     const button = event.target.closest('[data-month]');
     if (!button) return;
     const month = button.dataset.month;
-    if (month < firstMonth || month > getLastMonth()) return;
+    if (month < getFirstMonth() || month > getLastMonth()) return;
     onSelect(month);
     close(true);
   });

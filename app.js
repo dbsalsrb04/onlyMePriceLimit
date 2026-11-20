@@ -1,5 +1,5 @@
 import {
-  FIRST_MONTH, INITIAL_LAST_MONTH, isValidMonth, shiftMonth, listMonths,
+  FIRST_BET_MONTH, FIRST_MONTH, INITIAL_LAST_MONTH, isValidMonth, shiftMonth, listMonths,
   formatMonth, formatPrice, formatRate, rateTone, buildMarketView,
 } from './market.js';
 import {
@@ -16,7 +16,7 @@ const projectPath = new URL('./', location.href).pathname;
 const preferencesKey = `onlyMePriceLimit:preferences:${projectPath}`;
 const editorSelectionKey = `onlyMePriceLimit:editor-selection:${projectPath}`;
 const preferences = readPreference(preferencesKey) ?? {};
-let currentMonth = isValidMonth(preferences.month) ? preferences.month : FIRST_MONTH;
+let currentMonth = isValidMonth(preferences.month, FIRST_BET_MONTH) ? preferences.month : FIRST_MONTH;
 let lastMonth = INITIAL_LAST_MONTH;
 let viewType = preferences.view === 'table' ? 'table' : 'cards';
 let sortMode = ['name', 'desc', 'asc'].includes(preferences.sort) ? preferences.sort : 'desc';
@@ -85,6 +85,19 @@ function errorMessage(error, fallback) {
   return error instanceof Error && !(error instanceof DOMException) ? error.message : fallback;
 }
 
+function firstQueryMonth() {
+  return bets.reduce((first, { month }) => month && month < first ? month : first, FIRST_MONTH);
+}
+
+function lastQueryMonth() {
+  return bets.reduce((last, { month }) => month && month > last ? month : last, lastMonth);
+}
+
+function clampQueryMonth() {
+  if (currentMonth < firstQueryMonth()) currentMonth = firstQueryMonth();
+  if (currentMonth > lastQueryMonth()) currentMonth = lastQueryMonth();
+}
+
 function useSnapshot(snapshot) {
   stocks = snapshot.stocks;
   bets = snapshot.bets ?? [];
@@ -94,7 +107,7 @@ function useSnapshot(snapshot) {
     pricesByStock.get(stockId).set(month, price);
     if (month > lastMonth) lastMonth = month;
   }
-  if (currentMonth > lastMonth) currentMonth = lastMonth;
+  clampQueryMonth();
 
   for (const id of selected) {
     if (!pricesByStock.has(id)) {
@@ -113,7 +126,7 @@ function useSnapshot(snapshot) {
 }
 
 function viewSnapshot() {
-  const nextMonth = shiftMonth(currentMonth, 1);
+  const nextMonth = shiftMonth(currentMonth, 1, FIRST_BET_MONTH);
   const prices = [];
   for (const { id } of stocks) {
     const monthlyPrices = pricesByStock.get(id);
@@ -161,10 +174,22 @@ function renderTableRow({ name, currentPrice, nextPrice, rate }) {
   return row;
 }
 
+function renderMonthlyBets() {
+  const region = $('monthly-bets');
+  const entries = bets.filter(({ month }) => month === currentMonth).map(({ title, answer }) => {
+    const entry = element('article');
+    entry.append(element('h2', '', title), element('p', '', answer));
+    return entry;
+  });
+  region.replaceChildren(...entries);
+  region.hidden = entries.length === 0;
+}
+
 function renderMarket() {
   $('current-month').textContent = formatMonth(currentMonth);
-  $('previous-month').disabled = currentMonth === FIRST_MONTH;
-  $('next-month').disabled = currentMonth === lastMonth;
+  $('previous-month').disabled = currentMonth === firstQueryMonth();
+  $('next-month').disabled = currentMonth === lastQueryMonth();
+  renderMonthlyBets();
   $('view-cards').setAttribute('aria-pressed', String(viewType === 'cards'));
   $('view-table').setAttribute('aria-pressed', String(viewType === 'table'));
   $('sort-name').setAttribute('aria-pressed', String(sortMode === 'name'));
@@ -191,7 +216,7 @@ function renderMarket() {
 }
 
 function selectMonth(month) {
-  if (!isValidMonth(month) || month > lastMonth) return;
+  if (!isValidMonth(month, firstQueryMonth()) || month > lastQueryMonth()) return;
   datePicker.close();
   currentMonth = month;
   savePreferences();
@@ -199,7 +224,7 @@ function selectMonth(month) {
 }
 
 function moveMonth(amount) {
-  const month = shiftMonth(currentMonth, amount);
+  const month = shiftMonth(currentMonth, amount, firstQueryMonth());
   if (month) selectMonth(month);
 }
 
@@ -224,7 +249,8 @@ function openPage(page) {
   } else if (page === 'editor') {
     renderStockList();
     renderGrid();
-    scrollToEditorMonth(currentMonth);
+    const editorMonth = currentMonth < FIRST_MONTH ? FIRST_MONTH : currentMonth;
+    scrollToEditorMonth(editorMonth > lastMonth ? lastMonth : editorMonth);
   } else {
     bettingEditor.render(bets);
   }
@@ -257,11 +283,11 @@ async function registerBet() {
   setStatus('bet-status');
   try {
     await runWrite(async () => {
-      const bet = await addBet(database, { title: '제목', question: '질문', answer: '정답!!' });
+      const bet = await addBet(database, { title: '제목', answer: '정답!!' });
       bets.push(bet);
       notifyOtherTabs();
     });
-    bettingEditor.render(bets);
+    refreshPage();
   } catch (error) {
     setStatus('bet-status', errorMessage(error, '베팅 기록을 추가하지 못했어요.'), true);
   } finally {
@@ -270,7 +296,7 @@ async function registerBet() {
 }
 
 function beginBetDeletion(bet) {
-  askConfirmation('베팅 기록을 삭제할까요?', `‘${bet.title || '제목 없음'}’의 제목, 질문, 정답이 함께 삭제돼요.`, '삭제', async () => {
+  askConfirmation('베팅 기록을 삭제할까요?', `‘${bet.title || '제목 없음'}’의 제목, 연월, 정답이 함께 삭제돼요.`, '삭제', async () => {
     await runWrite(async () => {
       await deleteBet(database, bet.id);
       useSnapshot(await readSnapshot(database));
@@ -824,15 +850,17 @@ try {
     years: $('date-years'),
     months: $('date-months'),
     getMonth: () => currentMonth,
-    getLastMonth: () => lastMonth,
+    getFirstMonth: firstQueryMonth,
+    getLastMonth: lastQueryMonth,
     onSelect: selectMonth,
-    firstMonth: FIRST_MONTH,
   });
   bettingEditor = bindBettingEditor({
     list: $('bet-list'),
     onSave: (id, field, value) => runWrite(async () => {
       const saved = await saveBetField(database, id, field, value);
       bets = bets.map((bet) => bet.id === id ? saved : bet);
+      clampQueryMonth();
+      if (activePage === 'view') renderMarket();
       notifyOtherTabs();
       return saved;
     }),

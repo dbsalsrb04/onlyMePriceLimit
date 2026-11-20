@@ -1,4 +1,5 @@
 export const FIRST_MONTH = "1998-03";
+export const FIRST_BET_MONTH = "1998-01";
 export const INITIAL_LAST_MONTH = "2026-11";
 
 const LAST_SUPPORTED_MONTH = "9999-12";
@@ -7,9 +8,9 @@ const EMPTY_VALUE = "—";
 const priceFormatter = new Intl.NumberFormat("ko-KR");
 const nameCollator = new Intl.Collator("ko-KR");
 
-export function isValidMonth(month) {
+export function isValidMonth(month, firstMonth = FIRST_MONTH) {
   return typeof month === "string" && MONTH_PATTERN.test(month)
-    && month >= FIRST_MONTH && month <= LAST_SUPPORTED_MONTH;
+    && month >= firstMonth && month <= LAST_SUPPORTED_MONTH;
 }
 
 function monthIndex(month) {
@@ -26,11 +27,11 @@ function monthFromIndex(index) {
 const firstMonthIndex = monthIndex(FIRST_MONTH);
 const lastMonthIndex = monthIndex(LAST_SUPPORTED_MONTH);
 
-export function shiftMonth(month, offset) {
-  if (!isValidMonth(month) || !Number.isInteger(offset)) return null;
+export function shiftMonth(month, offset, firstMonth = FIRST_MONTH) {
+  if (!isValidMonth(month, firstMonth) || !Number.isInteger(offset)) return null;
 
   const index = monthIndex(month) + offset;
-  if (index < firstMonthIndex || index > lastMonthIndex) return null;
+  if (index < monthIndex(firstMonth) || index > lastMonthIndex) return null;
 
   return monthFromIndex(index);
 }
@@ -112,7 +113,7 @@ function compareRowsByRate(a, b, direction) {
 }
 
 export function buildMarketView(snapshot, month, sortMode = "name") {
-  const nextMonth = shiftMonth(month, 1);
+  const nextMonth = shiftMonth(month, 1, FIRST_BET_MONTH);
   const currentPrices = new Map();
   const nextPrices = new Map();
 

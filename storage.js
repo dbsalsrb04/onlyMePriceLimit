@@ -1,4 +1,4 @@
-import { isValidMonth } from "./market.js";
+import { FIRST_BET_MONTH, FIRST_MONTH, isValidMonth, shiftMonth } from "./market.js";
 
 const BACKUP_VERSION = 2;
 const STOCKS = "stocks";
@@ -13,7 +13,7 @@ export async function openDatabase() {
   const sitePath = pagePath.replace(/\/index\.html$|\/$/, "");
 
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open(`onlyMePriceLimit${sitePath}`, 2);
+    const request = indexedDB.open(`onlyMePriceLimit${sitePath}`, 3);
     let blocked = false;
 
     request.onupgradeneeded = () => {
@@ -34,7 +34,13 @@ export async function openDatabase() {
 
       if (!db.objectStoreNames.contains(BETS)) {
         const bets = db.createObjectStore(BETS, { keyPath: "id" });
-        bets.add({ id: crypto.randomUUID(), title: "제목", question: "질문", answer: "정답!!", order: 0 });
+        bets.add({ id: crypto.randomUUID(), title: "제목", month: FIRST_MONTH, answer: "정답!!", order: 0 });
+      } else {
+        const bets = request.transaction.objectStore(BETS);
+        const existing = bets.getAll();
+        existing.onsuccess = () => {
+          for (const bet of validateBets(existing.result)) bets.put(bet);
+        };
       }
     };
     request.onblocked = () => {
@@ -211,19 +217,32 @@ export async function savePrice(db, stockId, month, price) {
   });
 }
 
-function validateBetField(field, value) {
-  if (!["title", "question", "answer"].includes(field) || typeof value !== "string") {
-    throw new Error("베팅의 제목, 질문, 정답은 텍스트로 입력해 주세요.");
+function parseBetMonth(value) {
+  const match = /^(\d{4})(?:-|년\s*)(\d{1,2})월?$/.exec(value);
+  if (!match) return null;
+  const month = `${match[1]}-${match[2].padStart(2, "0")}`;
+  return isValidMonth(month, FIRST_BET_MONTH) ? month : null;
+}
+
+function normalizeBetField(field, value) {
+  if (field === "month") {
+    const month = typeof value === "string" ? parseBetMonth(value.trim()) : null;
+    if (!month) throw new Error("연월을 YYYY-MM 형식으로 입력해 주세요. (예: 2000-09)");
+    return month;
   }
+  if (!["title", "answer"].includes(field) || typeof value !== "string") {
+    throw new Error("베팅의 제목과 정답은 텍스트로 입력해 주세요.");
+  }
+  return value;
 }
 
 function sortBets(bets) {
   return bets.sort((a, b) => a.order - b.order || a.id.localeCompare(b.id));
 }
 
-export async function addBet(db, { title, question, answer }) {
-  const fields = { title, question, answer };
-  for (const [field, value] of Object.entries(fields)) validateBetField(field, value);
+export async function addBet(db, { title, answer }) {
+  normalizeBetField("title", title);
+  normalizeBetField("answer", answer);
 
   return runTransaction(db, [BETS], "readwrite", (transaction, setResult, abort) => {
     const bets = transaction.objectStore(BETS);
@@ -234,7 +253,9 @@ export async function addBet(db, { title, question, answer }) {
         abort(new Error("베팅 항목 순서를 더 추가할 수 없어요."));
         return;
       }
-      const bet = { id: crypto.randomUUID(), ...fields, order };
+      const latest = request.result.reduce((month, bet) => bet.month > month ? bet.month : month, "");
+      const month = latest ? shiftMonth(latest, 1, FIRST_BET_MONTH) : FIRST_MONTH;
+      const bet = { id: crypto.randomUUID(), title, month, answer, order };
       bets.add(bet);
       setResult(bet);
     };
@@ -242,7 +263,7 @@ export async function addBet(db, { title, question, answer }) {
 }
 
 export async function saveBetField(db, id, field, value) {
-  validateBetField(field, value);
+  const normalized = normalizeBetField(field, value);
 
   return runTransaction(db, [BETS], "readwrite", (transaction, setResult, abort) => {
     const bets = transaction.objectStore(BETS);
@@ -252,7 +273,7 @@ export async function saveBetField(db, id, field, value) {
         abort(new Error("이 베팅 항목을 찾을 수 없어요."));
         return;
       }
-      const bet = { ...request.result, [field]: value };
+      const bet = { ...request.result, [field]: normalized };
       bets.put(bet);
       setResult(bet);
     };
@@ -265,23 +286,72 @@ export async function deleteBet(db, id) {
   });
 }
 
+function fillBetMonths(bets, legacyIds) {
+  const occupied = new Set(bets.map(({ month }) => month).filter(Boolean));
+  // Preserve a year written in a legacy title when January is available.
+  for (const bet of bets) {
+    if (bet.month || !legacyIds.has(bet.id)) continue;
+    const year = /^(\d{4})(?:년|\s)/.exec(bet.title)?.[1];
+    const january = year && `${year}-01`;
+    if (isValidMonth(january, FIRST_BET_MONTH) && !occupied.has(january)) {
+      bet.month = january;
+      occupied.add(january);
+    }
+  }
+
+  let previous;
+  let index = 0;
+  while (index < bets.length) {
+    if (bets[index].month) {
+      previous = bets[index++].month;
+      continue;
+    }
+    const start = index;
+    while (index < bets.length && !bets[index].month) index += 1;
+    const next = bets[index]?.month;
+    const missing = bets.slice(start, index).filter(({ id }) => legacyIds.has(id));
+    let month = previous ? shiftMonth(previous, 1, FIRST_BET_MONTH) : FIRST_BET_MONTH;
+    if (!previous && next) {
+      month = shiftMonth(next, -missing.length, FIRST_BET_MONTH) ?? FIRST_BET_MONTH;
+    }
+    for (const bet of missing) {
+      while (month && occupied.has(month)) month = shiftMonth(month, 1, FIRST_BET_MONTH);
+      if (!month || (next && month >= next)) break;
+      bet.month = month;
+      occupied.add(month);
+      month = shiftMonth(month, 1, FIRST_BET_MONTH);
+    }
+  }
+  return bets;
+}
+
 function validateBets(value = []) {
   if (!Array.isArray(value)) {
     throw new Error("백업 파일의 베팅 목록이 올바르지 않아요.");
   }
   const ids = new Set();
+  const legacyIds = new Set();
   const bets = value.map((bet, index) => {
     if (typeof bet?.id !== "string" || !bet.id.trim() || ids.has(bet.id)
       || !Number.isSafeInteger(bet.order) || bet.order < 0) {
       throw new Error(`백업 파일의 ${index + 1}번째 베팅 항목이 올바르지 않아요.`);
     }
-    validateBetField("title", bet.title);
-    validateBetField("question", bet.question);
-    validateBetField("answer", bet.answer);
+    let title = normalizeBetField("title", bet.title);
+    const answer = normalizeBetField("answer", bet.answer);
+    let month = bet.month ?? null;
+    if (!Object.hasOwn(bet, "month")) {
+      legacyIds.add(bet.id);
+      const suffix = /(?:\s*\|\s*|\s+)(\d{4}년\s*\d{1,2}월)\s*$/.exec(title);
+      month = suffix ? parseBetMonth(suffix[1]) : null;
+      if (month) title = title.slice(0, suffix.index).trimEnd();
+      title = title.replace(/\s*\|\s*$/, "");
+    } else if (month !== null && !isValidMonth(month, FIRST_BET_MONTH)) {
+      throw new Error(`백업 파일의 ${index + 1}번째 베팅 연월이 올바르지 않아요.`);
+    }
     ids.add(bet.id);
-    return { id: bet.id, title: bet.title, question: bet.question, answer: bet.answer, order: bet.order };
+    return { id: bet.id, title, month, answer, order: bet.order };
   });
-  return sortBets(bets);
+  return fillBetMonths(sortBets(bets), legacyIds);
 }
 
 function validateSnapshot(value) {

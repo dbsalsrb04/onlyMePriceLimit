@@ -1,4 +1,6 @@
-const fieldLabels = { title: '제목', question: '질문', answer: '정답' };
+import { formatMonth } from './market.js';
+
+const fieldLabels = { title: '제목', month: '연월', answer: '정답' };
 const iconPaths = {
   edit: 'm16 3 5 5-12 12-6 1 1-6Z m-1.5 1.5 5 5',
   save: 'M3 3h14l4 4v14H3Z M7 3v6h10V3 M7 21v-8h10v8',
@@ -46,7 +48,11 @@ export function bindBettingEditor({ list, onSave, onDelete }) {
   }
 
   function displayField(row, record, field) {
-    const text = { title: record.title, question: `- ${record.question}`, answer: `정답: ${record.answer}` }[field];
+    const text = {
+      title: record.title,
+      month: record.month ? formatMonth(record.month) : '연월 미지정',
+      answer: `정답: ${record.answer}`,
+    }[field];
     const content = element(field === 'title' ? 'h2' : 'p', 'bet-text', text);
     const edit = iconButton('edit', fieldName(record, field, '수정'));
     edit.addEventListener('click', () => startEdit(row, record.id, field));
@@ -122,7 +128,7 @@ export function bindBettingEditor({ list, onSave, onDelete }) {
     const input = element('input', 'bet-input');
     input.type = 'text';
     input.autocomplete = 'off';
-    input.placeholder = fieldLabels[field];
+    input.placeholder = field === 'month' ? 'YYYY-MM' : fieldLabels[field];
     input.setAttribute('aria-label', fieldName(record, field, '입력'));
     const button = iconButton('save', fieldName(record, field, '저장'));
     const session = { id, field, row, input, button, saving: false };
@@ -149,11 +155,13 @@ export function bindBettingEditor({ list, onSave, onDelete }) {
     const entry = element('article', 'bet-entry');
     entry.dataset.betId = record.id;
     const content = element('div', 'bet-content');
-    for (const field of ['title', 'question', 'answer']) {
+    const heading = element('div', 'bet-heading');
+    content.append(heading);
+    for (const field of ['title', 'month', 'answer']) {
       const row = element('div', `bet-field bet-${field}`);
       row.dataset.field = field;
       displayField(row, record, field);
-      content.append(row);
+      (field === 'answer' ? content : heading).append(row);
     }
     const remove = element('button', 'bet-delete', '삭제');
     remove.type = 'button';
