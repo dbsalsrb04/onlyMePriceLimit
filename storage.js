@@ -206,12 +206,7 @@ export async function saveIssuedShares(db, stockId, month, value) {
   return runTransaction(db, [STOCKS], "readwrite", (transaction, setResult, abort) => {
     const stocks = transaction.objectStore(STOCKS);
     findStock(stocks, stockId, (stock) => {
-      const history = stock.issuedSharesHistory;
-      if (month !== FIRST_MONTH && history[0]?.month !== FIRST_MONTH) {
-        abort(new Error("1998년 3월의 발행주식 수를 먼저 입력해 주세요."));
-        return;
-      }
-      const updated = history.filter((record) => record.month !== month);
+      const updated = stock.issuedSharesHistory.filter((record) => record.month !== month);
       if (value !== null) updated.push({ month, value });
       updated.sort((a, b) => a.month.localeCompare(b.month));
       const saved = { ...stock, issuedSharesHistory: updated };

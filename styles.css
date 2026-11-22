@@ -920,10 +920,6 @@ kbd {
   color: var(--subtle);
 }
 
-.grid-input:disabled {
-  cursor: not-allowed;
-}
-
 .price-grid tbody tr:focus-within {
   --price-row-outline: rgb(255 255 255 / 30%);
   --price-row-glow: rgb(255 255 255 / 32%);

@@ -399,15 +399,13 @@ function displayGridInput(input, stock, editing = document.activeElement === inp
   const history = stock.issuedSharesHistory;
   const record = shares ? issuedSharesRecordAt(history, month) : undefined;
   const value = shares ? record?.value : pricesByStock.get(stock.id).get(month);
-  input.disabled = shares && month !== FIRST_MONTH && history[0]?.month !== FIRST_MONTH;
   input.classList.toggle('is-inherited', Boolean(record && record.month !== month));
 
-  const draft = input.disabled ? undefined : gridDrafts[mode].get(stock.id)?.get(month);
-  const focused = editing && !input.disabled;
-  const text = draft?.value ?? (focused ? String(value ?? '') : formatGridValue(mode, value));
+  const draft = gridDrafts[mode].get(stock.id)?.get(month);
+  const text = draft?.value ?? (editing ? String(value ?? '') : formatGridValue(mode, value));
   if (input.value !== text) {
     input.value = text;
-    if (focused) input.select();
+    if (editing) input.select();
   }
   if (draft?.invalid) input.setAttribute('aria-invalid', 'true');
   else input.removeAttribute('aria-invalid');
@@ -547,7 +545,7 @@ function advanceGridInput(input) {
 }
 
 async function commitGridInput(input, advance = false) {
-  if (input.readOnly || input.disabled) return;
+  if (input.readOnly) return;
   const { mode, stock: stockId, month } = input.dataset;
   const drafts = gridDrafts[mode];
   const shares = mode === 'shares';
