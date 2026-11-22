@@ -470,6 +470,24 @@ input::placeholder {
   gap: 0.45rem;
 }
 
+.market-section:has(> .market-table:not([hidden])) {
+  width: max-content;
+  max-width: 100%;
+  margin-inline: auto;
+}
+
+.market-section:has(> .market-table:not([hidden])) > .market-header {
+  contain: inline-size;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+}
+
+.market-section:has(> .market-table:not([hidden])) :is(.market-heading-group, .market-controls) {
+  flex: none;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+}
+
 .segmented-control {
   display: inline-flex;
   gap: 2px;
