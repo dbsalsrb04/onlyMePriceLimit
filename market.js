@@ -57,6 +57,15 @@ export function formatPrice(price) {
   return price == null ? EMPTY_VALUE : `${priceFormatter.format(price)}원`;
 }
 
+export function formatIssuedShares(value) {
+  return value == null ? EMPTY_VALUE : `${priceFormatter.format(value)}주`;
+}
+
+export function issuedSharesRecordAt(history, month) {
+  if (month < FIRST_MONTH || month > LAST_ISSUED_SHARES_MONTH) return undefined;
+  return history?.findLast((record) => record.month <= month);
+}
+
 export function calculateRate(currentPrice, nextPrice) {
   if (!Number.isSafeInteger(currentPrice) || currentPrice <= 0
     || !Number.isSafeInteger(nextPrice) || nextPrice < 0) return null;
@@ -123,10 +132,11 @@ export function buildMarketView(snapshot, month, sortMode = "name") {
     if (record.month === nextMonth) nextPrices.set(record.stockId, record.price);
   }
 
-  const rows = snapshot.stocks.map(({ id, name }) => {
+  const rows = snapshot.stocks.map(({ id, name, issuedSharesHistory }) => {
     const currentPrice = currentPrices.get(id) ?? null;
     const nextPrice = nextPrices.get(id) ?? null;
-    return { id, name, currentPrice, nextPrice, rate: calculateRate(currentPrice, nextPrice) };
+    const issuedShares = issuedSharesRecordAt(issuedSharesHistory, month)?.value ?? null;
+    return { id, name, issuedShares, currentPrice, nextPrice, rate: calculateRate(currentPrice, nextPrice) };
   });
 
   const ranked = rows.filter((row) => row.rate != null);

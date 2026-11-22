@@ -1,6 +1,6 @@
 import {
   FIRST_BET_MONTH, FIRST_MONTH, INITIAL_LAST_MONTH, LAST_ISSUED_SHARES_MONTH, isValidMonth, shiftMonth, listMonths,
-  formatMonth, formatPrice, formatRate, rateTone, buildMarketView,
+  formatMonth, formatPrice, formatIssuedShares, issuedSharesRecordAt, formatRate, rateTone, buildMarketView,
 } from './market.js';
 import {
   openDatabase, readSnapshot, addStock, renameStock, deleteStock, savePrice, saveIssuedShares,
@@ -170,12 +170,25 @@ function renderCard({ name, currentPrice, nextPrice, rate }) {
   return card;
 }
 
-function renderTableRow({ name, currentPrice, nextPrice, rate }) {
+function marketTableCell(tag, value, className = '') {
+  const cell = element(tag, className);
+  const text = element('span', 'market-cell-text', value);
+  text.title = value;
+  cell.append(text);
+  return cell;
+}
+
+function renderTableRow({ name, issuedShares, currentPrice, nextPrice, rate }) {
   const row = element('tr');
-  const nameCell = element('th', '', name);
+  const nameCell = marketTableCell('th', name);
   nameCell.scope = 'row';
-  row.append(nameCell, element('td', '', formatPrice(currentPrice)),
-    element('td', '', formatPrice(nextPrice)), rateElement('td', '', rate));
+  row.append(
+    nameCell,
+    marketTableCell('td', formatIssuedShares(issuedShares)),
+    marketTableCell('td', formatPrice(currentPrice)),
+    marketTableCell('td', formatPrice(nextPrice)),
+    marketTableCell('td', formatRate(rate), `tone-${rateTone(rate)}`),
+  );
   return row;
 }
 
@@ -377,14 +390,14 @@ function moveEditorColumn(stockId, targetId, after, restoreFocus = false) {
 
 function formatGridValue(mode, value) {
   if (value == null) return '';
-  return mode === 'shares' ? `${value.toLocaleString('ko-KR')}주` : formatPrice(value);
+  return mode === 'shares' ? formatIssuedShares(value) : formatPrice(value);
 }
 
 function displayGridInput(input, stock, editing = document.activeElement === input) {
   const { mode, month } = input.dataset;
   const shares = mode === 'shares';
   const history = stock.issuedSharesHistory;
-  const record = shares ? history.findLast((entry) => entry.month <= month) : undefined;
+  const record = shares ? issuedSharesRecordAt(history, month) : undefined;
   const value = shares ? record?.value : pricesByStock.get(stock.id).get(month);
   input.disabled = shares && month !== FIRST_MONTH && history[0]?.month !== FIRST_MONTH;
   input.classList.toggle('is-inherited', Boolean(record && record.month !== month));
@@ -576,7 +589,7 @@ async function commitGridInput(input, advance = false) {
       }
       showNotification(`${stock.name} · ${formatMonth(month)} · ${message}`);
     }
-    if (activePage === 'view' && !shares) renderMarket();
+    if (activePage === 'view') renderMarket();
     if (advance) advanceGridInput(input);
   } catch (error) {
     draft.invalid = true;

@@ -72,14 +72,15 @@
             </div>
           </header>
           <div id="market-cards" class="market-cards"></div>
-          <div id="market-table" class="market-table scroll-region" role="region" aria-label="종목 가격과 다음 달 상승률" tabindex="0" hidden>
+          <div id="market-table" class="market-table scroll-region" role="region" aria-label="종목별 발행 주식 수, 주가와 다음 달 상승률" tabindex="0" hidden>
             <table>
               <thead>
                 <tr>
-                  <th scope="col">종목명</th>
-                  <th scope="col">현재 월 가격</th>
-                  <th scope="col">다음 달 가격</th>
-                  <th scope="col">다음 달 상승률</th>
+                  <th scope="col" data-width-sample="TIGER 미국필라델피아반도체나스닥">종목명</th>
+                  <th scope="col" data-width-sample="00,000,000,000주">발행 주식 수</th>
+                  <th scope="col" data-width-sample="00,000,000원">현재 월 주가</th>
+                  <th scope="col" data-width-sample="00,000,000원">다음 달 주가</th>
+                  <th scope="col" data-width-sample="+100.00%">다음 달 상승률</th>
                 </tr>
               </thead>
               <tbody id="market-rows"></tbody>

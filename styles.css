@@ -545,13 +545,17 @@ table {
   font-variant-numeric: tabular-nums;
 }
 
+.market-table {
+  width: fit-content;
+  max-width: 100%;
+}
+
 .market-table table {
-  width: 100%;
-  min-width: 34rem;
+  width: max-content;
 }
 
 .market-table th, .market-table td {
-  padding: 0.55rem 0.9rem;
+  padding: 0.55rem 0.55rem;
   border-bottom: 1px solid var(--border);
   text-align: right;
 }
@@ -563,8 +567,34 @@ table {
   white-space: nowrap;
 }
 
-.market-table :is(th, td):first-child {
+.market-table thead th:first-child {
   text-align: left;
+}
+
+.market-table tbody th {
+  text-align: center;
+}
+
+.market-table thead th::after {
+  /* Reserve each sample's width without adding a visible row to the header. */
+  content: attr(data-width-sample);
+  display: block;
+  height: 0;
+  visibility: hidden;
+  font-size: 0.85rem;
+  font-weight: 400;
+}
+
+.market-table thead th:first-child::after {
+  font-weight: inherit;
+}
+
+.market-cell-text {
+  display: block;
+  contain: inline-size;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .market-table tbody tr:last-child :is(th, td) {
