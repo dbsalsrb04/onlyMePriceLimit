@@ -209,28 +209,14 @@ input::placeholder {
   padding-block: clamp(1.3rem, 3.5vw, 2.6rem) 3rem;
 }
 
-.page-header {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.85rem 1rem;
-  margin-bottom: 1.5rem;
-}
-
-.page-header h1:focus {
-  outline: none;
-}
-
 .view-header {
   position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   justify-items: center;
-}
-
-.view-header h1 {
-  justify-self: start;
+  align-items: center;
+  gap: 0.85rem 1rem;
+  margin-bottom: 1.5rem;
 }
 
 .monthly-bets {
@@ -357,6 +343,7 @@ input::placeholder {
 }
 
 .leader-section > h2 {
+  text-align: center;
   margin-bottom: 0.65rem;
 }
 
@@ -967,10 +954,6 @@ kbd {
   text-align: center;
 }
 
-.bets-header {
-  margin-bottom: 2rem;
-}
-
 .bet-records {
   width: min(100%, 48rem);
   margin-inline: auto;
@@ -1180,6 +1163,7 @@ dialog p:not(.status) {
 
 @media (min-width: 40rem) {
   .view-header { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); }
+  .view-header .month-controls { grid-area: 1 / 2; }
 
   .monthly-bets {
     position: absolute;

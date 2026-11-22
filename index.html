@@ -39,8 +39,7 @@
       <noscript><p class="status status-error">이 페이지를 사용하려면 자바스크립트를 활성화해 주세요.</p></noscript>
 
       <section id="view" role="tabpanel" aria-labelledby="open-view">
-        <header class="page-header view-header">
-          <h1 id="view-heading" tabindex="-1">조회</h1>
+        <header class="view-header">
           <div class="month-controls" role="group" aria-label="조회 연월">
             <button type="button" class="month-arrow" id="previous-month" aria-label="이전 달" disabled>‹</button>
             <div class="month-select">
@@ -97,9 +96,6 @@
       </section>
 
       <section id="editor" role="tabpanel" aria-labelledby="open-editor" hidden>
-        <header class="page-header editor-header">
-          <h1 id="editor-heading" tabindex="-1">편집</h1>
-        </header>
 
         <section class="stock-management" aria-labelledby="stock-management-heading">
           <h2 id="stock-management-heading">종목 관리</h2>
@@ -136,9 +132,6 @@
       </section>
 
       <section id="bets" role="tabpanel" aria-labelledby="open-bets" hidden>
-        <header class="bets-header">
-          <h1 id="bets-heading" tabindex="-1">베팅</h1>
-        </header>
         <div id="bet-list" class="bet-records"></div>
         <button type="button" id="add-bet">추가하기</button>
         <p id="bet-status" class="status" role="status"></p>
