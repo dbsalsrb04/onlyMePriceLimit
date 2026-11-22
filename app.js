@@ -34,7 +34,6 @@ let tabUpdates;
 let datePicker;
 let bettingEditor;
 let notificationTimer;
-let restoreStartedAt;
 
 function readPreference(key) {
   try {
@@ -716,8 +715,7 @@ async function exportBackup() {
 }
 
 async function selectBackup(event) {
-  const startedAt = restoreStartedAt ?? performance.now();
-  restoreStartedAt = undefined;
+  const startedAt = performance.now();
   const file = event.currentTarget.files[0];
   event.currentTarget.value = '';
   if (!file) return;
@@ -850,10 +848,7 @@ function wireEvents() {
     if ($('confirm-action').disabled) event.preventDefault();
   });
   $('export-backup').addEventListener('click', exportBackup);
-  $('import-backup').addEventListener('click', () => {
-    restoreStartedAt = performance.now();
-    $('backup-file').click();
-  });
+  $('import-backup').addEventListener('click', () => $('backup-file').click());
   $('backup-file').addEventListener('change', selectBackup);
 }
 
