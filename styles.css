@@ -685,35 +685,6 @@ table {
   background: transparent;
 }
 
-.stock-shares {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: 0.3rem;
-  cursor: default;
-}
-
-.stock-shares input.issued-shares-input {
-  flex: 1;
-  width: 0;
-  min-width: 0;
-  min-height: 1.8rem;
-  padding: 0.25rem 0.4rem;
-  font-size: 0.75rem;
-  font-variant-numeric: tabular-nums;
-  text-align: right;
-}
-
-.stock-shares span {
-  flex: none;
-  color: var(--muted);
-  font-size: 0.75rem;
-}
-
-.issued-shares-input[aria-invalid="true"] {
-  border-color: var(--gain);
-}
-
 .stock-list-actions {
   display: flex;
   flex-wrap: wrap;
@@ -763,6 +734,24 @@ table {
 .entry-hint {
   color: var(--muted);
   font-size: 0.75rem;
+}
+
+.editor-mode-tabs {
+  display: flex;
+  align-items: flex-end;
+  border-bottom: 1px solid var(--border);
+}
+
+.editor-mode-tabs .nav-button {
+  margin-bottom: -1px;
+}
+
+#editor-grid-panel {
+  margin-top: 0.65rem;
+}
+
+.shares-hint {
+  margin-bottom: 0.5rem;
 }
 
 kbd {
@@ -875,12 +864,20 @@ kbd {
   line-height: 1.1;
 }
 
-.price-grid input.price-input {
+.price-grid input.grid-input {
   min-height: 1.85rem;
   padding: 0.2rem 0.45rem;
   font-size: 0.82rem;
   font-variant-numeric: tabular-nums;
   text-align: right;
+}
+
+.grid-input.is-inherited:not(:focus) {
+  color: var(--subtle);
+}
+
+.grid-input:disabled {
+  cursor: not-allowed;
 }
 
 .price-grid tbody tr:focus-within {
@@ -896,7 +893,7 @@ kbd {
   box-shadow: inset 1px 0 var(--price-row-outline), inset 7px 0 8px -8px var(--price-row-glow);
 }
 
-.price-input.has-error, .price-input[aria-invalid="true"] {
+.grid-input[aria-invalid="true"] {
   border-color: var(--gain);
 }
 

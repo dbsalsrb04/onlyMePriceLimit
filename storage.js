@@ -1,6 +1,6 @@
-import { FIRST_BET_MONTH, FIRST_MONTH, isValidMonth, shiftMonth } from "./market.js";
+import { FIRST_BET_MONTH, FIRST_MONTH, LAST_ISSUED_SHARES_MONTH, isValidMonth, shiftMonth } from "./market.js";
 
-const BACKUP_VERSION = 2;
+const BACKUP_VERSION = 3;
 const STOCKS = "stocks";
 const PRICES = "prices";
 const BETS = "bets";
@@ -13,16 +13,25 @@ export async function openDatabase() {
   const sitePath = pagePath.replace(/\/index\.html$|\/$/, "");
 
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open(`onlyMePriceLimit${sitePath}`, 3);
+    const request = indexedDB.open(`onlyMePriceLimit${sitePath}`, 4);
     let blocked = false;
 
-    request.onupgradeneeded = () => {
+    request.onupgradeneeded = ({ oldVersion }) => {
       const db = request.result;
       const stocks = db.objectStoreNames.contains(STOCKS)
         ? request.transaction.objectStore(STOCKS)
         : db.createObjectStore(STOCKS, { keyPath: "id" });
       if (!stocks.indexNames.contains(STOCK_BY_NAME)) {
         stocks.createIndex(STOCK_BY_NAME, "nameKey", { unique: true });
+      }
+      if (oldVersion > 0 && oldVersion < 4) {
+        const existing = stocks.getAll();
+        existing.onsuccess = () => {
+          for (const stock of existing.result) {
+            const issuedSharesHistory = normalizeIssuedSharesHistory(stock);
+            stocks.put({ id: stock.id, name: stock.name, nameKey: stock.nameKey, issuedSharesHistory });
+          }
+        };
       }
 
       const prices = db.objectStoreNames.contains(PRICES)
@@ -35,7 +44,7 @@ export async function openDatabase() {
       if (!db.objectStoreNames.contains(BETS)) {
         const bets = db.createObjectStore(BETS, { keyPath: "id" });
         bets.add({ id: crypto.randomUUID(), title: "제목", month: FIRST_MONTH, answer: "정답!!", order: 0 });
-      } else {
+      } else if (oldVersion < 3) {
         const bets = request.transaction.objectStore(BETS);
         const existing = bets.getAll();
         existing.onsuccess = () => {
@@ -115,16 +124,38 @@ function isValidPrice(price) {
   return Number.isSafeInteger(price) && price >= 0;
 }
 
-function publicStock({ id, name, issuedShares }) {
-  const stock = { id, name };
-  if (issuedShares != null) stock.issuedShares = issuedShares;
-  return stock;
+function publicStock({ id, name, issuedSharesHistory }) {
+  return { id, name, issuedSharesHistory: issuedSharesHistory ?? [] };
 }
 
-function validateIssuedShares(issuedShares) {
-  if (!Number.isSafeInteger(issuedShares) || issuedShares < 0) {
+function validateIssuedShares(value) {
+  if (!Number.isSafeInteger(value) || value < 0) {
     throw new Error("발행주식 수는 0 이상의 정수로 입력해 주세요.");
   }
+}
+
+function isIssuedSharesMonth(month) {
+  return isValidMonth(month) && month <= LAST_ISSUED_SHARES_MONTH;
+}
+
+function normalizeIssuedSharesHistory(stock) {
+  if (!Object.hasOwn(stock, "issuedSharesHistory")) {
+    if (stock.issuedShares == null) return [];
+    validateIssuedShares(stock.issuedShares);
+    return [{ month: FIRST_MONTH, value: stock.issuedShares }];
+  }
+  if (!Array.isArray(stock.issuedSharesHistory)) {
+    throw new Error("발행주식 수 변경 기록이 올바르지 않아요.");
+  }
+  const months = new Set();
+  return stock.issuedSharesHistory.map((record) => {
+    if (!isIssuedSharesMonth(record?.month) || months.has(record.month)) {
+      throw new Error("발행주식 수 기록에 범위를 벗어나거나 중복된 연월이 있어요.");
+    }
+    validateIssuedShares(record.value);
+    months.add(record.month);
+    return { month: record.month, value: record.value };
+  }).sort((a, b) => a.month.localeCompare(b.month));
 }
 
 export async function readSnapshot(db) {
@@ -145,7 +176,7 @@ export async function readSnapshot(db) {
 
 export async function addStock(db, inputName) {
   const name = normalizeName(inputName);
-  const stock = { id: crypto.randomUUID(), name };
+  const stock = { id: crypto.randomUUID(), name, issuedSharesHistory: [] };
 
   return runTransaction(db, [STOCKS], "readwrite", (transaction, setResult) => {
     transaction.objectStore(STOCKS).add({ ...stock, nameKey: nameKey(name) });
@@ -166,16 +197,26 @@ export async function renameStock(db, id, inputName) {
   }, DUPLICATE_NAME);
 }
 
-export async function saveIssuedShares(db, stockId, issuedShares) {
-  if (issuedShares !== null) validateIssuedShares(issuedShares);
+export async function saveIssuedShares(db, stockId, month, value) {
+  if (!isIssuedSharesMonth(month)) {
+    throw new Error("발행주식 수는 1998년 3월부터 2026년 10월까지 입력할 수 있어요.");
+  }
+  if (value !== null) validateIssuedShares(value);
 
   return runTransaction(db, [STOCKS], "readwrite", (transaction, setResult, abort) => {
     const stocks = transaction.objectStore(STOCKS);
     findStock(stocks, stockId, (stock) => {
-      if (issuedShares === null) delete stock.issuedShares;
-      else stock.issuedShares = issuedShares;
-      stocks.put(stock);
-      setResult(publicStock(stock));
+      const history = stock.issuedSharesHistory;
+      if (month !== FIRST_MONTH && history[0]?.month !== FIRST_MONTH) {
+        abort(new Error("1998년 3월의 발행주식 수를 먼저 입력해 주세요."));
+        return;
+      }
+      const updated = history.filter((record) => record.month !== month);
+      if (value !== null) updated.push({ month, value });
+      updated.sort((a, b) => a.month.localeCompare(b.month));
+      const saved = { ...stock, issuedSharesHistory: updated };
+      stocks.put(saved);
+      setResult(publicStock(saved));
     }, abort);
   });
 }
@@ -367,7 +408,7 @@ function validateSnapshot(value) {
       throw new Error(`백업 파일의 ${index + 1}번째 종목 식별자가 올바르지 않아요.`);
     }
     const name = normalizeName(stock.name);
-    if (stock.issuedShares != null) validateIssuedShares(stock.issuedShares);
+    const issuedSharesHistory = normalizeIssuedSharesHistory(stock);
     const key = nameKey(name);
     if (names.has(key)) {
       throw new Error(`백업 파일에 이름이 같은 종목이 있어요. (${name})`);
@@ -375,7 +416,7 @@ function validateSnapshot(value) {
     stockIds.add(stock.id);
     names.add(key);
     recordedMonths.set(stock.id, new Set());
-    return publicStock({ id: stock.id, name, issuedShares: stock.issuedShares });
+    return { id: stock.id, name, issuedSharesHistory };
   });
 
   const prices = value.prices.map((record, index) => {
@@ -427,7 +468,7 @@ export function parseBackup(text) {
   } catch {
     throw new Error("백업 파일을 읽을 수 없어요. JSON 백업 파일을 선택해 주세요.");
   }
-  if (value?.version !== 1 && value?.version !== BACKUP_VERSION) {
+  if (![1, 2, BACKUP_VERSION].includes(value?.version)) {
     throw new Error("지원하는 백업 파일 형식이 아니에요.");
   }
   if (value.version === 1) return validateSnapshot({ ...value, bets: [] });

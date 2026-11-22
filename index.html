@@ -123,11 +123,18 @@
               <h2 id="price-heading">월별 가격</h2>
               <button type="button" id="reset-editor-selection" title="편집 종목 모두 선택 해제" disabled>초기화</button>
             </div>
-          <p class="entry-hint">헤더를 끌어 열 이동 · 입력칸을 벗어나면 저장 · <kbd>Enter</kbd>로 다음 달 이동</p>
+            <p class="entry-hint">헤더를 끌어 열 이동 · 입력칸을 벗어나면 저장 · <kbd>Enter</kbd>로 다음 달 이동</p>
           </header>
-          <p id="editor-status" class="status" role="status"></p>
-          <div id="editor-scroller" class="editor-scroller scroll-region" role="region" aria-label="월별 가격 입력" tabindex="0" hidden></div>
-          <p id="editor-empty" class="empty-state">목록에서 편집할 종목을 선택해 주세요.</p>
+          <div id="editor-mode-tabs" class="editor-mode-tabs" role="tablist" aria-label="월별 편집 항목">
+            <button type="button" class="nav-button" id="editor-price-tab" role="tab" aria-selected="true" aria-controls="editor-grid-panel">주가</button>
+            <button type="button" class="nav-button" id="editor-shares-tab" role="tab" aria-selected="false" aria-controls="editor-grid-panel" tabindex="-1">발행 주식 수</button>
+          </div>
+          <div id="editor-grid-panel" role="tabpanel" aria-labelledby="editor-price-tab">
+            <p id="editor-shares-hint" class="entry-hint shares-hint" hidden>종목마다 1998년 3월 값을 먼저 입력해 주세요. 흐린 숫자는 이전 값이며, 직접 입력한 칸을 비우면 그달의 변경 기록만 지워져요.</p>
+            <p id="editor-status" class="status" role="status"></p>
+            <div id="editor-scroller" class="editor-scroller scroll-region" role="region" aria-label="월별 가격 입력" tabindex="0" hidden></div>
+            <p id="editor-empty" class="empty-state">목록에서 편집할 종목을 선택해 주세요.</p>
+          </div>
         </section>
       </section>
 

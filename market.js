@@ -1,4 +1,5 @@
 export const FIRST_MONTH = "1998-03";
+export const LAST_ISSUED_SHARES_MONTH = "2026-10";
 export const FIRST_BET_MONTH = "1998-01";
 export const INITIAL_LAST_MONTH = "2026-11";
 

@@ -1,5 +1,5 @@
 import {
-  FIRST_BET_MONTH, FIRST_MONTH, INITIAL_LAST_MONTH, isValidMonth, shiftMonth, listMonths,
+  FIRST_BET_MONTH, FIRST_MONTH, INITIAL_LAST_MONTH, LAST_ISSUED_SHARES_MONTH, isValidMonth, shiftMonth, listMonths,
   formatMonth, formatPrice, formatRate, rateTone, buildMarketView,
 } from './market.js';
 import {
@@ -26,8 +26,8 @@ let stocks = [];
 let bets = [];
 let pricesByStock = new Map();
 const selected = new Set(readEditorSelection());
-const drafts = new Map();
-const issuedSharesDrafts = new Map();
+const gridDrafts = { price: new Map(), shares: new Map() };
+let editorMode = 'price';
 let gridSignature;
 let pendingWrite = Promise.resolve();
 let tabUpdates;
@@ -112,11 +112,12 @@ function useSnapshot(snapshot) {
   for (const id of selected) {
     if (!pricesByStock.has(id)) {
       selected.delete(id);
-      drafts.delete(id);
     }
   }
-  for (const id of issuedSharesDrafts.keys()) {
-    if (!pricesByStock.has(id)) issuedSharesDrafts.delete(id);
+  for (const drafts of Object.values(gridDrafts)) {
+    for (const id of drafts.keys()) {
+      if (!pricesByStock.has(id)) drafts.delete(id);
+    }
   }
   const savedSelection = readEditorSelection();
   const availableSelection = savedSelection.filter((id) => pricesByStock.has(id));
@@ -249,8 +250,7 @@ function openPage(page) {
   } else if (page === 'editor') {
     renderStockList();
     renderGrid();
-    const editorMonth = currentMonth < FIRST_MONTH ? FIRST_MONTH : currentMonth;
-    scrollToEditorMonth(editorMonth > lastMonth ? lastMonth : editorMonth);
+    scrollToEditorMonth(currentMonth);
   } else {
     bettingEditor.render(bets);
   }
@@ -319,7 +319,7 @@ function renderStockList() {
     picker.title = stock.name;
     picker.setAttribute('aria-pressed', String(selected.has(stock.id)));
     item.addEventListener('click', ({ target }) => {
-      if (target.closest('.stock-list-actions button, .stock-shares')) return;
+      if (target.closest('.stock-list-actions button')) return;
       toggleColumn(stock.id);
       picker.setAttribute('aria-pressed', String(selected.has(stock.id)));
     });
@@ -329,68 +329,12 @@ function renderStockList() {
     remove.addEventListener('click', () => beginStockDeletion(stock));
     const actions = element('div', 'stock-list-actions');
     actions.append(rename, remove);
-    const shareCount = element('div', 'stock-shares');
-    const shareInput = element('input', 'issued-shares-input');
-    shareInput.type = 'text';
-    shareInput.inputMode = 'numeric';
-    shareInput.autocomplete = 'off';
-    shareInput.placeholder = '발행주식 수';
-    shareInput.dataset.stock = stock.id;
-    shareInput.setAttribute('aria-label', `${stock.name} 발행주식 수`);
-    shareInput.value = issuedSharesDrafts.get(stock.id) ?? formatIssuedShares(stock.issuedShares);
-    shareCount.append(shareInput, element('span', '', '주'));
-    item.append(picker, shareCount, actions);
+    item.append(picker, actions);
     return item;
   });
   $('stock-list').replaceChildren(...items);
   $('stock-list-empty').hidden = items.length > 0;
   $('stock-list-empty').textContent = stocks.length ? '검색 결과가 없어요.' : '등록된 종목이 없어요.';
-}
-
-function formatIssuedShares(shares) {
-  return shares == null ? '' : shares.toLocaleString('ko-KR');
-}
-
-function parseIssuedShares(value) {
-  const text = value.trim();
-  if (!text) return null;
-  const shares = Number(text.replaceAll(',', ''));
-  if (!/^(?:[0-9]+|[0-9]{1,3}(?:,[0-9]{3})+)$/.test(text) || !Number.isSafeInteger(shares)) {
-    throw new Error('발행주식 수는 0 이상의 정수로 입력해 주세요.');
-  }
-  return shares;
-}
-
-async function commitIssuedShares(input) {
-  if (input.readOnly) return;
-  const stockId = input.dataset.stock;
-  const draft = input.value;
-  input.readOnly = true;
-  try {
-    const issuedShares = parseIssuedShares(draft);
-    const stock = await runWrite(async () => {
-      const saved = await saveIssuedShares(database, stockId, issuedShares);
-      stocks = stocks.map((stock) => stock.id === stockId ? saved : stock);
-      if (issuedSharesDrafts.get(stockId) === draft) issuedSharesDrafts.delete(stockId);
-      notifyOtherTabs();
-      return saved;
-    });
-    const field = input.isConnected ? input : $('stock-list').querySelector(
-      `.issued-shares-input[data-stock="${CSS.escape(stockId)}"]`,
-    );
-    if (field && !issuedSharesDrafts.has(stockId)) {
-      field.value = formatIssuedShares(issuedShares);
-      field.removeAttribute('aria-invalid');
-    }
-    const message = issuedShares === null ? '발행주식 수 기록을 지웠어요.'
-      : `발행주식 수 ${formatIssuedShares(issuedShares)}주 저장했어요.`;
-    setStatus('stock-form-status', `${stock.name} · ${message}`);
-  } catch (error) {
-    input.setAttribute('aria-invalid', 'true');
-    setStatus('stock-form-status', errorMessage(error, '발행주식 수를 저장하지 못했어요.'), true);
-  } finally {
-    input.readOnly = false;
-  }
 }
 
 function toggleColumn(stockId) {
@@ -413,7 +357,7 @@ function moveEditorColumn(stockId, targetId, after, restoreFocus = false) {
   order.splice(to, 0, stockId);
 
   const activeInput = document.activeElement;
-  if (activeInput?.matches('#editor-scroller .price-input')) activeInput.blur();
+  if (activeInput?.matches('#editor-scroller .grid-input')) activeInput.blur();
 
   selected.clear();
   for (const id of order) selected.add(id);
@@ -427,22 +371,65 @@ function moveEditorColumn(stockId, targetId, after, restoreFocus = false) {
   }
 }
 
-function formatPriceInput(price) {
-  return price == null ? '' : formatPrice(price);
+function formatGridValue(mode, value) {
+  if (value == null) return '';
+  return mode === 'shares' ? `${value.toLocaleString('ko-KR')}주` : formatPrice(value);
 }
 
-function priceCell({ id, name }, month) {
+function displayGridInput(input, stock, editing = document.activeElement === input) {
+  const { mode, month } = input.dataset;
+  const shares = mode === 'shares';
+  const history = stock.issuedSharesHistory;
+  const record = shares ? history.findLast((entry) => entry.month <= month) : undefined;
+  const value = shares ? record?.value : pricesByStock.get(stock.id).get(month);
+  input.disabled = shares && month !== FIRST_MONTH && history[0]?.month !== FIRST_MONTH;
+  input.classList.toggle('is-inherited', Boolean(record && record.month !== month));
+
+  const draft = input.disabled ? undefined : gridDrafts[mode].get(stock.id)?.get(month);
+  const focused = editing && !input.disabled;
+  const text = draft?.value ?? (focused ? String(value ?? '') : formatGridValue(mode, value));
+  if (input.value !== text) {
+    input.value = text;
+    if (focused) input.select();
+  }
+  if (draft?.invalid) input.setAttribute('aria-invalid', 'true');
+  else input.removeAttribute('aria-invalid');
+}
+
+function gridCell(stock, month) {
   const cell = element('td');
-  const input = element('input', 'price-input');
+  const input = element('input', 'grid-input');
   input.type = 'text';
   input.inputMode = 'numeric';
   input.autocomplete = 'off';
-  input.dataset.stock = id;
+  input.dataset.stock = stock.id;
   input.dataset.month = month;
-  input.setAttribute('aria-label', `${name} ${formatMonth(month)} 가격`);
-  input.value = drafts.get(id)?.get(month) ?? formatPriceInput(pricesByStock.get(id).get(month));
+  input.dataset.mode = editorMode;
+  const label = editorMode === 'shares' ? '발행 주식 수' : '가격';
+  input.setAttribute('aria-label', `${stock.name} ${formatMonth(month)} ${label}`);
+  displayGridInput(input, stock);
   cell.append(input);
   return cell;
+}
+
+function editorLastMonth() {
+  return editorMode === 'shares' ? LAST_ISSUED_SHARES_MONTH : lastMonth;
+}
+
+function selectEditorMode(mode) {
+  if (mode === editorMode) return;
+  const input = $('editor-scroller').querySelector('.grid-input:focus');
+  input?.blur();
+  editorMode = mode;
+  for (const type of ['price', 'shares']) {
+    const tab = $(`editor-${type}-tab`);
+    tab.setAttribute('aria-selected', String(type === mode));
+    tab.tabIndex = type === mode ? 0 : -1;
+  }
+  $('editor-grid-panel').setAttribute('aria-labelledby', `editor-${mode}-tab`);
+  $('editor-shares-hint').hidden = mode !== 'shares';
+  setStatus('editor-status');
+  renderGrid();
 }
 
 function renderGrid() {
@@ -452,7 +439,7 @@ function renderGrid() {
   $('reset-editor-selection').disabled = columns.length === 0;
   scroller.hidden = columns.length === 0;
   $('editor-empty').hidden = columns.length !== 0;
-  const signature = JSON.stringify([lastMonth, columns]);
+  const signature = JSON.stringify([editorMode, editorLastMonth(), columns.map(({ id, name }) => [id, name])]);
   if (signature === gridSignature) return;
   gridSignature = signature;
   if (!columns.length) {
@@ -464,7 +451,9 @@ function renderGrid() {
   const oldLeft = scroller.scrollLeft;
   const table = element('table', 'price-grid');
   table.style.setProperty('--stock-column-count', String(columns.length));
-  table.setAttribute('aria-label', '종목별 월간 주가 편집');
+  const label = editorMode === 'shares' ? '종목별 월간 발행 주식 수 편집' : '종목별 월간 주가 편집';
+  table.setAttribute('aria-label', label);
+  scroller.setAttribute('aria-label', label);
   const heading = table.createTHead().insertRow();
   const monthHeading = element('th', 'month-cell', '연월');
   monthHeading.scope = 'col';
@@ -500,13 +489,13 @@ function renderGrid() {
   }
   bindEditorColumnDrag(heading, scroller, moveEditorColumn);
   const body = table.createTBody();
-  for (const month of listMonths(lastMonth)) {
+  for (const month of listMonths(editorLastMonth())) {
     const row = body.insertRow();
     row.dataset.month = month;
     const monthCell = element('th', 'month-cell', month);
     monthCell.scope = 'row';
     row.append(monthCell);
-    for (const stock of columns) row.append(priceCell(stock, month));
+    for (const stock of columns) row.append(gridCell(stock, month));
   }
   scroller.replaceChildren(table);
   scroller.scrollTop = oldTop;
@@ -515,61 +504,83 @@ function renderGrid() {
 
 function scrollToEditorMonth(month) {
   const scroller = $('editor-scroller');
-  const row = scroller.querySelector(`tr[data-month="${month}"]`);
+  const end = editorLastMonth();
+  const targetMonth = month < FIRST_MONTH ? FIRST_MONTH : month > end ? end : month;
+  const row = scroller.querySelector(`tr[data-month="${targetMonth}"]`);
   if (!row) return;
   const headerHeight = scroller.querySelector('thead').getBoundingClientRect().height;
   scroller.scrollTop += row.getBoundingClientRect().top - scroller.getBoundingClientRect().top - headerHeight;
 }
 
-function parsePrice(value) {
+function parseGridValue(mode, value) {
   const text = value.trim();
   if (!text) return null;
-  const amount = text.replace(/\s*원$/, '');
+  const shares = mode === 'shares';
+  const amount = text.replace(shares ? /\s*주$/ : /\s*원$/, '');
   const number = Number(amount.replaceAll(',', ''));
   if (!/^(?:[0-9]+|[0-9]{1,3}(?:,[0-9]{3})+)$/.test(amount) || !Number.isSafeInteger(number)) {
-    throw new Error('가격은 0 이상의 정수로 입력해 주세요.');
+    throw new Error(`${shares ? '발행 주식 수는' : '가격은'} 0 이상의 정수로 입력해 주세요.`);
   }
   return number;
 }
 
-async function commitPrice(input, advance = false) {
-  if (input.readOnly) return;
-  const { stock: stockId, month } = input.dataset;
+function advanceGridInput(input) {
+  if (document.activeElement !== input) return;
+  const cell = input.closest('td');
+  const nextInput = cell.parentElement.nextElementSibling?.cells[cell.cellIndex]?.firstElementChild;
+  nextInput?.focus();
+}
+
+async function commitGridInput(input, advance = false) {
+  if (input.readOnly || input.disabled) return;
+  const { mode, stock: stockId, month } = input.dataset;
+  const drafts = gridDrafts[mode];
+  const shares = mode === 'shares';
   const draft = drafts.get(stockId)?.get(month);
+  if (!draft) {
+    if (advance) advanceGridInput(input);
+    return;
+  }
   input.readOnly = true;
   try {
-    const price = parsePrice(input.value);
+    const value = parseGridValue(mode, draft.value);
+    let removedShareRecord = false;
     await runWrite(async () => {
-      await savePrice(database, stockId, month, price);
-      const prices = pricesByStock.get(stockId);
-      if (price === null) prices.delete(month);
-      else prices.set(month, price);
+      if (shares) {
+        const stock = stocks.find(({ id }) => id === stockId);
+        removedShareRecord = value === null && stock?.issuedSharesHistory.some((record) => record.month === month);
+        const saved = await saveIssuedShares(database, stockId, month, value);
+        stocks = stocks.map((stock) => stock.id === stockId ? saved : stock);
+      } else {
+        await savePrice(database, stockId, month, value);
+        const prices = pricesByStock.get(stockId);
+        if (value === null) prices.delete(month);
+        else prices.set(month, value);
+      }
       if (drafts.get(stockId)?.get(month) === draft) drafts.get(stockId)?.delete(month);
       notifyOtherTabs();
     });
-    const field = input.isConnected ? input : $('editor-scroller').querySelector(
-      `.price-input[data-stock="${CSS.escape(stockId)}"][data-month="${month}"]`,
-    );
-    if (field && !drafts.get(stockId)?.has(month)) {
-      field.value = formatPriceInput(price);
-      field.removeAttribute('aria-invalid');
-      field.classList.remove('has-error');
-    }
     const stock = stocks.find(({ id }) => id === stockId);
-    const message = price === null ? '가격 기록을 지웠어요.' : `${formatPrice(price)} 저장했어요.`;
-    setStatus('editor-status', `${stock.name} · ${formatMonth(month)} · ${message}`);
-    if (activePage === 'view') renderMarket();
-    if (advance && document.activeElement === input) {
-      const cell = input.closest('td');
-      const nextRow = cell.parentElement.nextElementSibling;
-      const nextInput = nextRow?.cells[cell.cellIndex]?.firstElementChild;
-      nextInput?.focus();
-      nextInput?.select();
+    if (editorMode === mode && stock) {
+      const column = `.grid-input[data-stock="${CSS.escape(stockId)}"]`;
+      const selector = shares ? column : `${column}[data-month="${month}"]`;
+      for (const field of $('editor-scroller').querySelectorAll(selector)) displayGridInput(field, stock);
+      let message = `${formatGridValue(mode, value)} 저장했어요.`;
+      if (value === null) {
+        if (!shares) message = '가격 기록을 지웠어요.';
+        else message = removedShareRecord ? '발행 주식 수 변경 기록을 지웠어요.' : '지울 변경 기록이 없어요.';
+      }
+      setStatus('editor-status', `${stock.name} · ${formatMonth(month)} · ${message}`);
     }
+    if (activePage === 'view' && !shares) renderMarket();
+    if (advance) advanceGridInput(input);
   } catch (error) {
-    input.setAttribute('aria-invalid', 'true');
-    input.classList.add('has-error');
-    setStatus('editor-status', errorMessage(error, '가격을 저장하지 못했어요. 다시 시도해 주세요.'), true);
+    draft.invalid = true;
+    const stock = stocks.find(({ id }) => id === stockId);
+    if (input.isConnected && stock) displayGridInput(input, stock);
+    if (editorMode === mode) {
+      setStatus('editor-status', errorMessage(error, '값을 저장하지 못했어요. 다시 시도해 주세요.'), true);
+    }
   } finally {
     input.readOnly = false;
   }
@@ -648,7 +659,7 @@ function beginStockDeletion({ id, name }) {
   askConfirmation('종목을 삭제할까요?', `‘${name}’ 종목과 등록된 월별 가격이 모두 삭제돼요.`, '삭제', async () => {
     await runWrite(async () => {
       await deleteStock(database, id);
-      drafts.delete(id);
+      for (const drafts of Object.values(gridDrafts)) drafts.delete(id);
       useSnapshot(await readSnapshot(database));
       notifyOtherTabs();
     });
@@ -712,8 +723,7 @@ async function selectBackup(event) {
     const backup = parseBackup(await file.text());
     await runWrite(async () => {
       await replaceSnapshot(database, backup);
-      drafts.clear();
-      issuedSharesDrafts.clear();
+      for (const drafts of Object.values(gridDrafts)) drafts.clear();
       useSnapshot(backup);
       gridSignature = undefined;
       notifyOtherTabs();
@@ -736,7 +746,7 @@ function wireEvents() {
   for (const page of pages) {
     $(`open-${page}`).addEventListener('click', () => openPage(page));
   }
-  document.querySelector('[role="tablist"]').addEventListener('keydown', (event) => {
+  document.querySelector('.site-tabs').addEventListener('keydown', (event) => {
     if (event.altKey || event.ctrlKey || event.metaKey) return;
     const index = pages.indexOf(activePage);
     let next;
@@ -765,30 +775,19 @@ function wireEvents() {
   });
   $('stock-form').addEventListener('submit', registerStock);
   $('stock-search').addEventListener('input', renderStockList);
-  const stockList = $('stock-list');
-  stockList.addEventListener('input', ({ target }) => {
-    if (!target.matches('.issued-shares-input')) return;
-    issuedSharesDrafts.set(target.dataset.stock, target.value);
-    target.removeAttribute('aria-invalid');
-  });
-  stockList.addEventListener('focusout', ({ target }) => {
-    if (target.matches('.issued-shares-input') && issuedSharesDrafts.has(target.dataset.stock)) {
-      commitIssuedShares(target);
-    }
-  });
-  stockList.addEventListener('keydown', (event) => {
-    if (!event.target.matches('.issued-shares-input') || event.isComposing) return;
-    const inputs = [...stockList.querySelectorAll('.issued-shares-input')];
-    if (event.key === 'Tab' && !event.ctrlKey && !event.altKey && !event.metaKey) {
-      const next = inputs[inputs.indexOf(event.target) + (event.shiftKey ? -1 : 1)];
-      if (!next) return;
-      event.preventDefault();
-      next.focus();
-      next.select();
-    } else if (event.key === 'Enter') {
-      event.preventDefault();
-      commitIssuedShares(event.target);
-    }
+  for (const mode of ['price', 'shares']) {
+    $(`editor-${mode}-tab`).addEventListener('click', () => selectEditorMode(mode));
+  }
+  $('editor-mode-tabs').addEventListener('keydown', (event) => {
+    if (event.altKey || event.ctrlKey || event.metaKey) return;
+    let mode;
+    if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') mode = editorMode === 'price' ? 'shares' : 'price';
+    else if (event.key === 'Home') mode = 'price';
+    else if (event.key === 'End') mode = 'shares';
+    if (!mode) return;
+    event.preventDefault();
+    selectEditorMode(mode);
+    $(`editor-${mode}-tab`).focus();
   });
   $('reset-editor-selection').addEventListener('click', () => {
     selected.clear();
@@ -796,24 +795,42 @@ function wireEvents() {
     refreshPage();
     $('stock-search').focus();
   });
-  const priceEditor = $('editor-scroller');
-  priceEditor.addEventListener('focusout', ({ target }) => {
-    if (!target.matches('.price-input') || target.readOnly) return;
-    const { stock, month } = target.dataset;
-    if (drafts.get(stock)?.has(month)) commitPrice(target);
+  const grid = $('editor-scroller');
+  grid.addEventListener('mousedown', (event) => {
+    const input = event.target;
+    if (event.button !== 0 || !input.matches('.grid-input:enabled') || input === document.activeElement) return;
+    // Let focus select the full value without the first mouse click placing the caret.
+    event.preventDefault();
+    input.focus();
   });
-  priceEditor.addEventListener('input', ({ target }) => {
-    if (!target.matches('.price-input')) return;
-    const { stock, month } = target.dataset;
+  grid.addEventListener('focusin', ({ target }) => {
+    if (!target.matches('.grid-input')) return;
+    const stock = stocks.find(({ id }) => id === target.dataset.stock);
+    if (stock) displayGridInput(target, stock);
+    target.select();
+  });
+  grid.addEventListener('focusout', ({ target }) => {
+    if (!target.matches('.grid-input')) return;
+    const { mode, stock: stockId, month } = target.dataset;
+    if (gridDrafts[mode].get(stockId)?.has(month)) {
+      commitGridInput(target);
+    } else {
+      const stock = stocks.find(({ id }) => id === stockId);
+      if (stock) displayGridInput(target, stock, false);
+    }
+  });
+  grid.addEventListener('input', ({ target }) => {
+    if (!target.matches('.grid-input')) return;
+    const { mode, stock, month } = target.dataset;
+    const drafts = gridDrafts[mode];
     if (!drafts.has(stock)) drafts.set(stock, new Map());
-    drafts.get(stock).set(month, target.value);
-    target.classList.remove('has-error');
+    drafts.get(stock).set(month, { value: target.value });
     target.removeAttribute('aria-invalid');
   });
-  priceEditor.addEventListener('keydown', (event) => {
-    if (event.key !== 'Enter' || event.isComposing || !event.target.matches('.price-input')) return;
+  grid.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter' || event.isComposing || !event.target.matches('.grid-input')) return;
     event.preventDefault();
-    commitPrice(event.target, true);
+    commitGridInput(event.target, true);
   });
   $('rename-form').addEventListener('submit', submitRename);
   $('rename-cancel').addEventListener('click', () => $('rename-dialog').close());
