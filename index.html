@@ -27,15 +27,9 @@
           <input type="file" id="backup-file" accept=".json,application/json" aria-label="JSON 백업 파일" hidden>
         </div>
       </div>
-      <aside id="backup-toast" class="backup-toast" role="status" aria-live="polite" aria-atomic="true" hidden>
-        <strong>백업을 복원했어요.</strong>
-        <p id="backup-toast-file" class="backup-toast-file"></p>
-        <p id="backup-toast-details"></p>
-      </aside>
     </header>
 
     <main class="workspace">
-      <p id="app-status" class="status app-status" role="status"></p>
       <noscript><p class="status status-error">이 페이지를 사용하려면 자바스크립트를 활성화해 주세요.</p></noscript>
 
       <section id="view" role="tabpanel" aria-labelledby="open-view">
@@ -112,7 +106,6 @@
               <input id="stock-search" type="search" placeholder="종목명으로 검색" autocomplete="off">
             </div>
           </div>
-          <p id="stock-form-status" class="status" role="status"></p>
           <ul id="stock-list" class="stock-list" aria-label="등록 종목"></ul>
           <p id="stock-list-empty" class="stock-list-empty">등록된 종목이 없어요.</p>
         </section>
@@ -130,8 +123,6 @@
             <button type="button" class="nav-button" id="editor-shares-tab" role="tab" aria-selected="false" aria-controls="editor-grid-panel" tabindex="-1">발행 주식 수</button>
           </div>
           <div id="editor-grid-panel" role="tabpanel" aria-labelledby="editor-price-tab">
-            <p id="editor-shares-hint" class="entry-hint shares-hint" hidden>종목마다 1998년 3월 값을 먼저 입력해 주세요. 흐린 숫자는 이전 값이며, 직접 입력한 칸을 비우면 그달의 변경 기록만 지워져요.</p>
-            <p id="editor-status" class="status" role="status"></p>
             <div id="editor-scroller" class="editor-scroller scroll-region" role="region" aria-label="월별 가격 입력" tabindex="0" hidden></div>
             <p id="editor-empty" class="empty-state">목록에서 편집할 종목을 선택해 주세요.</p>
           </div>
@@ -141,9 +132,10 @@
       <section id="bets" role="tabpanel" aria-labelledby="open-bets" hidden>
         <div id="bet-list" class="bet-records"></div>
         <button type="button" id="add-bet">추가하기</button>
-        <p id="bet-status" class="status" role="status"></p>
       </section>
     </main>
+
+    <div id="notifications" class="notifications" role="status" aria-atomic="true"></div>
 
     <dialog id="confirm-dialog" aria-labelledby="confirm-title" aria-describedby="confirm-description">
       <h2 id="confirm-title">변경 확인</h2>
@@ -159,12 +151,12 @@
         <h2 id="rename-title">종목 이름 변경</h2>
         <label for="rename-name" class="control-label">새 종목명</label>
         <input id="rename-name" type="text" required autofocus>
-        <p id="rename-status" class="status" role="status"></p>
         <div class="dialog-actions">
           <button type="button" id="rename-cancel">취소</button>
           <button type="submit" class="button-primary">저장</button>
         </div>
       </form>
+      <div id="rename-notifications" class="notifications" role="status" aria-atomic="true"></div>
     </dialog>
   </body>
 </html>

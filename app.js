@@ -33,7 +33,8 @@ let pendingWrite = Promise.resolve();
 let tabUpdates;
 let datePicker;
 let bettingEditor;
-let backupToastTimer;
+let notificationTimer;
+let restoreStartedAt;
 
 function readPreference(key) {
   try {
@@ -74,11 +75,15 @@ function button(className, content, label) {
   return node;
 }
 
-function setStatus(id, message = '', isError = false) {
-  const node = $(id);
-  node.textContent = message;
-  node.classList.toggle('status-error', isError);
-  node.classList.toggle('status-success', Boolean(message) && !isError);
+function showNotification(message, { error = false, details = [], region = $('notifications') } = {}) {
+  const card = element('div', 'notification');
+  card.classList.toggle('notification-error', error);
+  card.append(element('strong', '', message), ...details.map((line) => element('p', '', line)));
+  clearTimeout(notificationTimer);
+  $('notifications').replaceChildren();
+  $('rename-notifications').replaceChildren();
+  region.replaceChildren(card);
+  notificationTimer = setTimeout(() => region.replaceChildren(), 5000);
 }
 
 function errorMessage(error, fallback) {
@@ -280,7 +285,6 @@ function refreshPage() {
 async function registerBet() {
   const add = $('add-bet');
   add.disabled = true;
-  setStatus('bet-status');
   try {
     await runWrite(async () => {
       const bet = await addBet(database, { title: '제목', answer: '정답!!' });
@@ -288,8 +292,9 @@ async function registerBet() {
       notifyOtherTabs();
     });
     refreshPage();
+    showNotification('베팅 기록을 추가했어요.');
   } catch (error) {
-    setStatus('bet-status', errorMessage(error, '베팅 기록을 추가하지 못했어요.'), true);
+    showNotification(errorMessage(error, '베팅 기록을 추가하지 못했어요.'), { error: true });
   } finally {
     add.disabled = false;
   }
@@ -303,7 +308,7 @@ function beginBetDeletion(bet) {
       notifyOtherTabs();
     });
     refreshPage();
-    setStatus('bet-status', '베팅 기록을 삭제했어요.');
+    showNotification('베팅 기록을 삭제했어요.');
     return $('add-bet');
   });
 }
@@ -367,7 +372,7 @@ function moveEditorColumn(stockId, targetId, after, restoreFocus = false) {
   if (restoreFocus) {
     const header = $('editor-scroller').querySelector(`th[data-stock-id="${CSS.escape(stockId)}"] .editor-column-name`);
     header.focus();
-    setStatus('editor-status', `${header.textContent} 열을 ${to + 1}번째로 옮겼어요.`);
+    showNotification(`${header.textContent} 열을 ${to + 1}번째로 옮겼어요.`);
   }
 }
 
@@ -427,8 +432,6 @@ function selectEditorMode(mode) {
     tab.tabIndex = type === mode ? 0 : -1;
   }
   $('editor-grid-panel').setAttribute('aria-labelledby', `editor-${mode}-tab`);
-  $('editor-shares-hint').hidden = mode !== 'shares';
-  setStatus('editor-status');
   renderGrid();
 }
 
@@ -561,16 +564,18 @@ async function commitGridInput(input, advance = false) {
       notifyOtherTabs();
     });
     const stock = stocks.find(({ id }) => id === stockId);
-    if (editorMode === mode && stock) {
-      const column = `.grid-input[data-stock="${CSS.escape(stockId)}"]`;
-      const selector = shares ? column : `${column}[data-month="${month}"]`;
-      for (const field of $('editor-scroller').querySelectorAll(selector)) displayGridInput(field, stock);
+    if (stock) {
+      if (editorMode === mode) {
+        const column = `.grid-input[data-stock="${CSS.escape(stockId)}"]`;
+        const selector = shares ? column : `${column}[data-month="${month}"]`;
+        for (const field of $('editor-scroller').querySelectorAll(selector)) displayGridInput(field, stock);
+      }
       let message = `${formatGridValue(mode, value)} 저장했어요.`;
       if (value === null) {
         if (!shares) message = '가격 기록을 지웠어요.';
         else message = removedShareRecord ? '발행 주식 수 변경 기록을 지웠어요.' : '지울 변경 기록이 없어요.';
       }
-      setStatus('editor-status', `${stock.name} · ${formatMonth(month)} · ${message}`);
+      showNotification(`${stock.name} · ${formatMonth(month)} · ${message}`);
     }
     if (activePage === 'view' && !shares) renderMarket();
     if (advance) advanceGridInput(input);
@@ -578,9 +583,7 @@ async function commitGridInput(input, advance = false) {
     draft.invalid = true;
     const stock = stocks.find(({ id }) => id === stockId);
     if (input.isConnected && stock) displayGridInput(input, stock);
-    if (editorMode === mode) {
-      setStatus('editor-status', errorMessage(error, '값을 저장하지 못했어요. 다시 시도해 주세요.'), true);
-    }
+    showNotification(errorMessage(error, '값을 저장하지 못했어요. 다시 시도해 주세요.'), { error: true });
   } finally {
     input.readOnly = false;
   }
@@ -592,7 +595,6 @@ async function registerStock(event) {
   const name = input.value;
   const submit = $('stock-form').querySelector('button[type="submit"]');
   submit.disabled = true;
-  setStatus('stock-form-status');
   try {
     await runWrite(async () => {
       const stock = await addStock(database, name);
@@ -603,8 +605,9 @@ async function registerStock(event) {
     if (input.value === name) input.value = '';
     $('stock-search').value = '';
     refreshPage();
+    showNotification('종목을 추가했어요.');
   } catch (error) {
-    setStatus('stock-form-status', errorMessage(error, '종목을 추가하지 못했어요.'), true);
+    showNotification(errorMessage(error, '종목을 추가하지 못했어요.'), { error: true });
   } finally {
     submit.disabled = false;
   }
@@ -613,7 +616,7 @@ async function registerStock(event) {
 function beginRename(stock) {
   const dialog = $('rename-dialog');
   dialog.dataset.stock = stock.id;
-  setStatus('rename-status');
+  $('rename-notifications').replaceChildren();
   $('rename-name').value = stock.name;
   dialog.showModal();
   $('rename-name').select();
@@ -626,7 +629,6 @@ async function submitRename(event) {
   const name = $('rename-name').value;
   const submit = $('rename-form').querySelector('button[type="submit"]');
   submit.disabled = $('rename-cancel').disabled = true;
-  setStatus('rename-status');
   try {
     await runWrite(async () => {
       const renamed = await renameStock(database, id, name);
@@ -636,9 +638,12 @@ async function submitRename(event) {
     dialog.close();
     refreshPage();
     $('stock-search').focus();
-    setStatus('stock-form-status', '종목 이름을 변경했어요.');
+    showNotification('종목 이름을 변경했어요.');
   } catch (error) {
-    setStatus('rename-status', errorMessage(error, '종목 이름을 변경하지 못했어요.'), true);
+    showNotification(errorMessage(error, '종목 이름을 변경하지 못했어요.'), {
+      error: true,
+      region: $('rename-notifications'),
+    });
   } finally {
     submit.disabled = $('rename-cancel').disabled = false;
   }
@@ -664,7 +669,7 @@ function beginStockDeletion({ id, name }) {
       notifyOtherTabs();
     });
     refreshPage();
-    setStatus('editor-status', `‘${name}’ 종목을 삭제했어요.`);
+    showNotification(`‘${name}’ 종목을 삭제했어요.`);
     return $('stock-search');
   });
 }
@@ -678,7 +683,7 @@ async function confirmAction() {
   try {
     nextFocus = await confirmOperation();
   } catch (error) {
-    setStatus(activePage === 'bets' ? 'bet-status' : 'editor-status', errorMessage(error, '변경 사항을 저장하지 못했어요.'), true);
+    showNotification(errorMessage(error, '변경 사항을 저장하지 못했어요.'), { error: true });
   } finally {
     action.disabled = cancel.disabled = false;
     dialog.close();
@@ -687,7 +692,6 @@ async function confirmAction() {
 }
 
 async function exportBackup() {
-  setStatus('app-status');
   try {
     await pendingWrite;
     const text = serializeBackup(await readSnapshot(database));
@@ -705,19 +709,18 @@ async function exportBackup() {
     link.download = `backup_${year}-${month}-${day}-${hour}${minute}${second}${fractionalSecond}.json`;
     link.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
-    setStatus('app-status', '백업 파일을 내려받았어요.');
+    showNotification('백업 파일을 내려받았어요.');
   } catch (error) {
-    setStatus('app-status', errorMessage(error, '백업을 내보내지 못했어요.'), true);
+    showNotification(errorMessage(error, '백업을 내보내지 못했어요.'), { error: true });
   }
 }
 
 async function selectBackup(event) {
+  const startedAt = restoreStartedAt ?? performance.now();
+  restoreStartedAt = undefined;
   const file = event.currentTarget.files[0];
   event.currentTarget.value = '';
   if (!file) return;
-  setStatus('app-status');
-  clearTimeout(backupToastTimer);
-  $('backup-toast').hidden = true;
   $('import-backup').disabled = true;
   try {
     const backup = parseBackup(await file.text());
@@ -730,12 +733,16 @@ async function selectBackup(event) {
     });
     savePreferences();
     refreshPage();
-    $('backup-toast-file').textContent = file.name;
-    $('backup-toast-details').textContent = `종목 ${backup.stocks.length.toLocaleString('ko-KR')}개 · 월별 가격 ${backup.prices.length.toLocaleString('ko-KR')}건 · 베팅 기록 ${backup.bets.length.toLocaleString('ko-KR')}건`;
-    $('backup-toast').hidden = false;
-    backupToastTimer = setTimeout(() => { $('backup-toast').hidden = true; }, 5000);
+    const milliseconds = Math.round(performance.now() - startedAt);
+    showNotification('백업을 복원했어요.', {
+      details: [
+        file.name,
+        `종목 ${backup.stocks.length.toLocaleString('ko-KR')}개 · 월별 가격 ${backup.prices.length.toLocaleString('ko-KR')}건 · 베팅 기록 ${backup.bets.length.toLocaleString('ko-KR')}건`,
+        `${milliseconds}ms (${(milliseconds / 1000).toFixed(3)}초)`,
+      ],
+    });
   } catch (error) {
-    setStatus('app-status', errorMessage(error, '백업을 복원하지 못했어요.'), true);
+    showNotification(errorMessage(error, '백업을 복원하지 못했어요.'), { error: true });
   } finally {
     $('import-backup').disabled = false;
   }
@@ -843,7 +850,10 @@ function wireEvents() {
     if ($('confirm-action').disabled) event.preventDefault();
   });
   $('export-backup').addEventListener('click', exportBackup);
-  $('import-backup').addEventListener('click', () => $('backup-file').click());
+  $('import-backup').addEventListener('click', () => {
+    restoreStartedAt = performance.now();
+    $('backup-file').click();
+  });
   $('backup-file').addEventListener('change', selectBackup);
 }
 
@@ -857,7 +867,7 @@ try {
         useSnapshot(await readSnapshot(database));
         gridSignature = undefined;
         refreshPage();
-      }).catch(() => setStatus('app-status', '다른 탭의 변경 내용을 불러오지 못했어요.', true));
+      }).catch(() => showNotification('다른 탭의 변경 내용을 불러오지 못했어요.', { error: true }));
     });
   }
   wireEvents();
@@ -879,13 +889,15 @@ try {
       clampQueryMonth();
       if (activePage === 'view') renderMarket();
       notifyOtherTabs();
+      showNotification('베팅 기록을 저장했어요.');
       return saved;
     }),
+    onError: (error) => showNotification(errorMessage(error, '내용을 저장하지 못했어요. 다시 시도해 주세요.'), { error: true }),
     onDelete: beginBetDeletion,
   });
   renderMarket();
 } catch (error) {
-  setStatus('app-status', errorMessage(error, '브라우저의 저장소를 열지 못했어요. 페이지를 다시 열어 주세요.'), true);
+  showNotification(errorMessage(error, '브라우저의 저장소를 열지 못했어요. 페이지를 다시 열어 주세요.'), { error: true });
   $('open-editor').disabled = true;
   $('open-bets').disabled = true;
   $('export-backup').disabled = true;

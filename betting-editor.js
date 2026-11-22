@@ -35,7 +35,7 @@ function iconButton(kind, label) {
   return button;
 }
 
-export function bindBettingEditor({ list, onSave, onDelete }) {
+export function bindBettingEditor({ list, onSave, onDelete, onError }) {
   let records = [];
   let active;
 
@@ -78,7 +78,6 @@ export function bindBettingEditor({ list, onSave, onDelete }) {
     session.input.readOnly = true;
     session.button.disabled = true;
     session.row.setAttribute('aria-busy', 'true');
-    session.row.querySelector('.bet-field-status')?.remove();
     session.input.removeAttribute('aria-invalid');
 
     try {
@@ -104,13 +103,8 @@ export function bindBettingEditor({ list, onSave, onDelete }) {
           ?.focus({ preventScroll: true });
       }
     } catch (error) {
-      if (active !== session) return;
-      const message = error instanceof Error && !(error instanceof DOMException)
-        ? error.message : '내용을 저장하지 못했어요. 다시 시도해 주세요.';
-      const status = element('span', 'bet-field-status', message);
-      status.setAttribute('role', 'alert');
-      session.input.setAttribute('aria-invalid', 'true');
-      session.row.append(status);
+      if (active === session) session.input.setAttribute('aria-invalid', 'true');
+      onError(error);
     } finally {
       session.saving = false;
       session.input.readOnly = false;

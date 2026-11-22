@@ -750,10 +750,6 @@ table {
   margin-top: 0.65rem;
 }
 
-.shares-hint {
-  margin-bottom: 0.5rem;
-}
-
 kbd {
   padding: 0.1rem 0.25rem;
   border: 1px solid var(--border-strong);
@@ -906,45 +902,40 @@ kbd {
   margin-block: 0.5rem;
 }
 
-.app-status:not(:empty) {
-  margin: 0 0 0.8rem;
-}
-
-.backup-toast {
-  position: absolute;
-  top: calc(100% + 0.75rem);
-  right: 1rem;
+.notifications {
+  position: fixed;
+  right: max(1rem, env(safe-area-inset-right));
+  bottom: max(1rem, env(safe-area-inset-bottom));
   z-index: 20;
   width: min(23rem, calc(100% - 2rem));
+  pointer-events: none;
+}
+
+.notification {
   padding: 1rem 1.15rem;
   border: 1px solid var(--border-strong);
   border-radius: var(--radius);
   background: var(--surface-raised);
   box-shadow: 0 8px 28px rgb(0 0 0 / 35%);
-  pointer-events: none;
   overflow-wrap: anywhere;
 }
 
-.backup-toast strong {
+.notification strong {
   color: #b4d1bc;
 }
 
-.backup-toast p {
+.notification-error strong {
+  color: var(--gain);
+}
+
+.notification p {
   margin-top: 0.4rem;
   color: var(--muted);
   font-size: 0.82rem;
 }
 
-.backup-toast .backup-toast-file {
-  color: var(--text);
-}
-
 .status-error {
   color: var(--gain);
-}
-
-.status-success {
-  color: #b4d1bc;
 }
 
 #bets {
@@ -1062,12 +1053,6 @@ kbd {
   border-color: var(--gain);
 }
 
-.bet-field-status {
-  flex-basis: 100%;
-  color: var(--gain);
-  font-size: 0.8125rem;
-}
-
 .bet-title input.bet-input {
   font-size: clamp(1.1rem, 2.4vw, 1.4rem);
   font-weight: 650;
@@ -1104,10 +1089,6 @@ kbd {
 
 #add-bet {
   margin-top: 0.25rem;
-}
-
-#bet-status {
-  text-align: center;
 }
 
 dialog {
