@@ -62,25 +62,27 @@ export function formatIssuedShares(value) {
 }
 
 function formatScaledInteger(value, divisor, places, unit) {
-  if (value == null) return EMPTY_VALUE;
   const scale = 10n ** BigInt(places);
-  const rounded = (BigInt(value) * scale + divisor / 2n) / divisor;
+  const rounded = (value * scale + divisor / 2n) / divisor;
   const fraction = (rounded % scale).toString().padStart(places, "0").replace(/0+$/, "");
   return `${rounded / scale}${fraction ? `.${fraction}` : ""}${unit}`;
 }
 
+function formatKoreanUnits(value, places, suffix = "") {
+  if (value == null) return EMPTY_VALUE;
+  const amount = BigInt(value);
+  if (amount >= 1_000_000_000_000n) return formatScaledInteger(amount, 1_000_000_000_000n, places, "조" + suffix);
+  if (amount >= 100_000_000n) return formatScaledInteger(amount, 100_000_000n, places, "억" + suffix);
+  if (amount >= 10_000n) return formatScaledInteger(amount, 10_000n, places, "만" + suffix);
+  return `${amount}${suffix}`;
+}
+
 export function formatCompactIssuedShares(value) {
-  if (value != null && value < 100_000_000) {
-    return formatScaledInteger(value, 10_000n, 2, "만 주");
-  }
-  return formatScaledInteger(value, 100_000_000n, 2, "억 주");
+  return formatKoreanUnits(value, 2, " 주");
 }
 
 export function formatMarketCap(value) {
-  if (value != null && value < 1_000_000_000_000n) {
-    return formatScaledInteger(value, 100_000_000n, 1, "억");
-  }
-  return formatScaledInteger(value, 1_000_000_000_000n, 1, "조");
+  return formatKoreanUnits(value, 1);
 }
 
 export function issuedSharesRecordAt(history, month) {
@@ -149,10 +151,10 @@ function compareRowsByRate(a, b, direction) {
   return rateOrder * direction || compareName(a, b);
 }
 
-function compareNextMarketCap(a, b, direction) {
-  if (a.nextMarketCap == null) return b.nextMarketCap == null ? 0 : 1;
-  if (b.nextMarketCap == null) return -1;
-  return compareInteger(a.nextMarketCap, b.nextMarketCap) * direction;
+function compareOptionalInteger(a, b, direction) {
+  if (a == null) return b == null ? 0 : 1;
+  if (b == null) return -1;
+  return compareInteger(a, b) * direction;
 }
 
 export function buildMarketView(snapshot, month, sortMode = "name", marketCapSort = null) {
@@ -170,10 +172,12 @@ export function buildMarketView(snapshot, month, sortMode = "name", marketCapSor
     const nextPrice = nextPrices.get(id) ?? null;
     const issuedShares = issuedSharesRecordAt(issuedSharesHistory, month)?.value ?? null;
     const nextIssuedShares = issuedSharesRecordAt(issuedSharesHistory, nextMonth)?.value ?? null;
+    const currentMarketCap = calculateMarketCap(issuedShares, currentPrice);
+    const nextMarketCap = calculateMarketCap(nextIssuedShares, nextPrice);
+    const marketCapChange = currentMarketCap != null && nextMarketCap != null ? nextMarketCap - currentMarketCap : null;
     return {
       id, name, issuedShares, currentPrice, nextPrice,
-      currentMarketCap: calculateMarketCap(issuedShares, currentPrice),
-      nextMarketCap: calculateMarketCap(nextIssuedShares, nextPrice),
+      currentMarketCap, nextMarketCap, marketCapChange,
       rate: calculateRate(currentPrice, nextPrice),
     };
   });
@@ -186,9 +190,11 @@ export function buildMarketView(snapshot, month, sortMode = "name", marketCapSor
   const compareBaseOrder = sortMode === "name"
     ? compareName
     : (a, b) => compareRowsByRate(a, b, sortMode === "asc" ? 1 : -1);
-  const marketCapDirection = marketCapSort === "asc" ? 1 : -1;
+  const capChangeSort = marketCapSort && sortMode !== "name";
+  const capField = capChangeSort ? "marketCapChange" : "nextMarketCap";
+  const marketCapDirection = !capChangeSort && marketCapSort === "asc" ? 1 : -1;
   rows.sort((a, b) => {
-    const capOrder = marketCapSort ? compareNextMarketCap(a, b, marketCapDirection) : 0;
+    const capOrder = marketCapSort ? compareOptionalInteger(a[capField], b[capField], marketCapDirection) : 0;
     return capOrder || compareBaseOrder(a, b);
   });
 

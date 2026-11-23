@@ -207,12 +207,12 @@ function renderMonthlyBets() {
   region.hidden = entries.length === 0;
 }
 
-function renderSortButton(id, label, direction, basis = '') {
+function renderSortButton(id, label, direction) {
   const control = $(id);
   const arrow = { desc: ' ↓', asc: ' ↑' }[direction] ?? '';
   const order = { desc: '내림차순', asc: '오름차순' }[direction];
   control.setAttribute('aria-pressed', String(Boolean(order)));
-  control.setAttribute('aria-label', [label, basis, order].filter(Boolean).join(', '));
+  control.setAttribute('aria-label', order ? `${label}, ${order}` : label);
   control.textContent = label + arrow;
 }
 
@@ -225,7 +225,11 @@ function renderMarket() {
   $('view-table').setAttribute('aria-pressed', String(viewType === 'table'));
   $('sort-name').setAttribute('aria-pressed', String(sortMode === 'name'));
   renderSortButton('sort-rate', '상승률 순', sortMode);
-  renderSortButton('sort-market-cap', '시가총액 순', marketCapSort, '다음 달 시총 기준');
+  const capBasis = marketCapSort && sortMode !== 'name' ? '시총 증가액 내림차순' : '다음 달 시총 기준';
+  renderSortButton('sort-market-cap', '시가총액 순', marketCapSort);
+  const capButton = $('sort-market-cap');
+  capButton.title = capBasis;
+  capButton.setAttribute('aria-description', capBasis);
 
   const { rows, leaders } = buildMarketView(viewSnapshot(), currentMonth, sortMode, marketCapSort);
   $('leaders').replaceChildren(...leaders.map(renderLeader));
