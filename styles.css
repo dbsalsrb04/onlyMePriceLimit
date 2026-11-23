@@ -427,7 +427,7 @@ input::placeholder {
 }
 
 .leader-primary-cap {
-  --leader-primary-max: 2.5rem;
+  --leader-primary-max: 2.375rem;
 }
 
 .tone-up {
