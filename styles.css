@@ -585,10 +585,7 @@ table {
   white-space: nowrap;
 }
 
-.market-table thead th:first-child {
-  text-align: left;
-}
-
+.market-table thead th:first-child,
 .market-table tbody th {
   text-align: center;
 }

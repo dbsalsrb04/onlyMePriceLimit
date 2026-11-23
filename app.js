@@ -1,6 +1,7 @@
 import {
   FIRST_BET_MONTH, FIRST_MONTH, INITIAL_LAST_MONTH, LAST_ISSUED_SHARES_MONTH, isValidMonth, shiftMonth, listMonths,
-  formatMonth, formatPrice, formatIssuedShares, issuedSharesRecordAt, formatRate, rateTone, buildMarketView,
+  formatMonth, formatPrice, formatIssuedShares, formatCompactIssuedShares, formatMarketCap,
+  issuedSharesRecordAt, formatRate, rateTone, buildMarketView,
 } from './market.js';
 import {
   openDatabase, readSnapshot, addStock, renameStock, deleteStock, savePrice, saveIssuedShares,
@@ -20,6 +21,7 @@ let currentMonth = isValidMonth(preferences.month, FIRST_BET_MONTH) ? preference
 let lastMonth = INITIAL_LAST_MONTH;
 let viewType = preferences.view === 'table' ? 'table' : 'cards';
 let sortMode = ['name', 'desc', 'asc'].includes(preferences.sort) ? preferences.sort : 'desc';
+let marketCapSort = ['desc', 'asc'].includes(preferences.marketCapSort) ? preferences.marketCapSort : null;
 let activePage = 'view';
 let database;
 let stocks = [];
@@ -52,7 +54,7 @@ function writePreference(key, value) {
 }
 
 function savePreferences() {
-  writePreference(preferencesKey, { month: currentMonth, view: viewType, sort: sortMode });
+  writePreference(preferencesKey, { month: currentMonth, view: viewType, sort: sortMode, marketCapSort });
 }
 
 function readEditorSelection() {
@@ -178,13 +180,15 @@ function marketTableCell(tag, value, className = '') {
   return cell;
 }
 
-function renderTableRow({ name, issuedShares, currentPrice, nextPrice, rate }) {
+function renderTableRow({ name, issuedShares, currentMarketCap, nextMarketCap, currentPrice, nextPrice, rate }) {
   const row = element('tr');
   const nameCell = marketTableCell('th', name);
   nameCell.scope = 'row';
   row.append(
     nameCell,
-    marketTableCell('td', formatIssuedShares(issuedShares)),
+    marketTableCell('td', formatCompactIssuedShares(issuedShares)),
+    marketTableCell('td', formatMarketCap(currentMarketCap)),
+    marketTableCell('td', formatMarketCap(nextMarketCap)),
     marketTableCell('td', formatPrice(currentPrice)),
     marketTableCell('td', formatPrice(nextPrice)),
     marketTableCell('td', formatRate(rate), `tone-${rateTone(rate)}`),
@@ -203,6 +207,15 @@ function renderMonthlyBets() {
   region.hidden = entries.length === 0;
 }
 
+function renderSortButton(id, label, direction, basis = '') {
+  const control = $(id);
+  const arrow = { desc: ' ↓', asc: ' ↑' }[direction] ?? '';
+  const order = { desc: '내림차순', asc: '오름차순' }[direction];
+  control.setAttribute('aria-pressed', String(Boolean(order)));
+  control.setAttribute('aria-label', [label, basis, order].filter(Boolean).join(', '));
+  control.textContent = label + arrow;
+}
+
 function renderMarket() {
   $('current-month').textContent = formatMonth(currentMonth);
   $('previous-month').disabled = currentMonth === firstQueryMonth();
@@ -211,14 +224,10 @@ function renderMarket() {
   $('view-cards').setAttribute('aria-pressed', String(viewType === 'cards'));
   $('view-table').setAttribute('aria-pressed', String(viewType === 'table'));
   $('sort-name').setAttribute('aria-pressed', String(sortMode === 'name'));
-  const rateSort = $('sort-rate');
-  rateSort.setAttribute('aria-pressed', String(sortMode !== 'name'));
-  rateSort.textContent = { name: '상승률 순', desc: '상승률 순 ↓', asc: '상승률 순 ↑' }[sortMode];
-  rateSort.setAttribute('aria-label', {
-    name: '상승률 순', desc: '상승률 순, 내림차순', asc: '상승률 순, 오름차순',
-  }[sortMode]);
+  renderSortButton('sort-rate', '상승률 순', sortMode);
+  renderSortButton('sort-market-cap', '시가총액 순', marketCapSort, '다음 달 시총 기준');
 
-  const { rows, leaders } = buildMarketView(viewSnapshot(), currentMonth, sortMode);
+  const { rows, leaders } = buildMarketView(viewSnapshot(), currentMonth, sortMode, marketCapSort);
   $('leaders').replaceChildren(...leaders.map(renderLeader));
   $('leaders').hidden = leaders.length === 0;
   $('leader-empty').hidden = leaders.length !== 0;
@@ -785,7 +794,12 @@ function wireEvents() {
     renderMarket();
   });
   $('sort-rate').addEventListener('click', () => {
-    sortMode = { name: 'desc', desc: 'asc', asc: 'name' }[sortMode];
+    sortMode = sortMode === 'desc' ? 'asc' : 'desc';
+    savePreferences();
+    renderMarket();
+  });
+  $('sort-market-cap').addEventListener('click', () => {
+    marketCapSort = { off: 'desc', desc: 'asc', asc: null }[marketCapSort ?? 'off'];
     savePreferences();
     renderMarket();
   });

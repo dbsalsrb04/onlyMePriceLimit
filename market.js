@@ -61,9 +61,30 @@ export function formatIssuedShares(value) {
   return value == null ? EMPTY_VALUE : `${priceFormatter.format(value)}주`;
 }
 
+function formatScaledInteger(value, divisor, places, unit) {
+  if (value == null) return EMPTY_VALUE;
+  const scale = 10n ** BigInt(places);
+  const rounded = (BigInt(value) * scale + divisor / 2n) / divisor;
+  const fraction = (rounded % scale).toString().padStart(places, "0");
+  return `${rounded / scale}.${fraction}${unit}`;
+}
+
+export function formatCompactIssuedShares(value) {
+  return formatScaledInteger(value, 100_000_000n, 2, "억 주");
+}
+
+export function formatMarketCap(value) {
+  return formatScaledInteger(value, 1_000_000_000_000n, 1, "조");
+}
+
 export function issuedSharesRecordAt(history, month) {
-  if (month < FIRST_MONTH || month > LAST_ISSUED_SHARES_MONTH) return undefined;
+  if (!month || month < FIRST_MONTH || month > LAST_ISSUED_SHARES_MONTH) return undefined;
   return history?.findLast((record) => record.month <= month);
+}
+
+function calculateMarketCap(issuedShares, price) {
+  if (issuedShares == null || price == null) return null;
+  return BigInt(issuedShares) * BigInt(price);
 }
 
 export function calculateRate(currentPrice, nextPrice) {
@@ -122,7 +143,13 @@ function compareRowsByRate(a, b, direction) {
   return rateOrder * direction || compareName(a, b);
 }
 
-export function buildMarketView(snapshot, month, sortMode = "name") {
+function compareNextMarketCap(a, b, direction) {
+  if (a.nextMarketCap == null) return b.nextMarketCap == null ? 0 : 1;
+  if (b.nextMarketCap == null) return -1;
+  return compareInteger(a.nextMarketCap, b.nextMarketCap) * direction;
+}
+
+export function buildMarketView(snapshot, month, sortMode = "name", marketCapSort = null) {
   const nextMonth = shiftMonth(month, 1, FIRST_BET_MONTH);
   const currentPrices = new Map();
   const nextPrices = new Map();
@@ -136,7 +163,13 @@ export function buildMarketView(snapshot, month, sortMode = "name") {
     const currentPrice = currentPrices.get(id) ?? null;
     const nextPrice = nextPrices.get(id) ?? null;
     const issuedShares = issuedSharesRecordAt(issuedSharesHistory, month)?.value ?? null;
-    return { id, name, issuedShares, currentPrice, nextPrice, rate: calculateRate(currentPrice, nextPrice) };
+    const nextIssuedShares = issuedSharesRecordAt(issuedSharesHistory, nextMonth)?.value ?? null;
+    return {
+      id, name, issuedShares, currentPrice, nextPrice,
+      currentMarketCap: calculateMarketCap(issuedShares, currentPrice),
+      nextMarketCap: calculateMarketCap(nextIssuedShares, nextPrice),
+      rate: calculateRate(currentPrice, nextPrice),
+    };
   });
 
   const ranked = rows.filter((row) => row.rate != null);
@@ -144,8 +177,14 @@ export function buildMarketView(snapshot, month, sortMode = "name") {
   const bestRate = ranked[0]?.rate;
   const leaders = ranked.filter((row) => compareDisplayedRate(row.rate, bestRate) === 0);
 
-  if (sortMode === "name") rows.sort(compareName);
-  else rows.sort((a, b) => compareRowsByRate(a, b, sortMode === "asc" ? 1 : -1));
+  const compareBaseOrder = sortMode === "name"
+    ? compareName
+    : (a, b) => compareRowsByRate(a, b, sortMode === "asc" ? 1 : -1);
+  const marketCapDirection = marketCapSort === "asc" ? 1 : -1;
+  rows.sort((a, b) => {
+    const capOrder = marketCapSort ? compareNextMarketCap(a, b, marketCapDirection) : 0;
+    return capOrder || compareBaseOrder(a, b);
+  });
 
   return { rows, leaders };
 }

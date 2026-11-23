@@ -68,19 +68,22 @@
               <div class="segmented-control" role="group" aria-label="종목 정렬">
                 <button type="button" id="sort-name" aria-pressed="false">가나다 순</button>
                 <button type="button" id="sort-rate" aria-pressed="true" aria-label="상승률 순, 내림차순">상승률 순 ↓</button>
+                <button type="button" id="sort-market-cap" aria-pressed="false" aria-label="시가총액 순, 다음 달 시총 기준" title="다음 달 시총 기준">시가총액 순</button>
               </div>
             </div>
           </header>
           <div id="market-cards" class="market-cards"></div>
-          <div id="market-table" class="market-table scroll-region" role="region" aria-label="종목별 발행 주식 수, 주가와 다음 달 상승률" tabindex="0" hidden>
+          <div id="market-table" class="market-table scroll-region" role="region" aria-label="종목별 발행 주식 수, 시총, 주가와 상승률" tabindex="0" hidden>
             <table>
               <thead>
                 <tr>
                   <th scope="col" data-width-sample="TIGER 미국필라델피아반도체나스닥">종목명</th>
-                  <th scope="col" data-width-sample="00,000,000,000주">발행 주식 수</th>
+                  <th scope="col" data-width-sample="0000.00억 주">발행 주식 수</th>
+                  <th scope="col" data-width-sample="0000.0조">현재 월 시총</th>
+                  <th scope="col" data-width-sample="0000.0조">다음 달 시총</th>
                   <th scope="col" data-width-sample="00,000,000원">현재 월 주가</th>
                   <th scope="col" data-width-sample="00,000,000원">다음 달 주가</th>
-                  <th scope="col" data-width-sample="+100.00%">다음 달 상승률</th>
+                  <th scope="col" data-width-sample="+100.00%">상승률</th>
                 </tr>
               </thead>
               <tbody id="market-rows"></tbody>
