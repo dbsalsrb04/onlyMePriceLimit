@@ -1,6 +1,6 @@
 import {
   FIRST_BET_MONTH, FIRST_MONTH, INITIAL_LAST_MONTH, LAST_ISSUED_SHARES_MONTH, isValidMonth, shiftMonth, listMonths,
-  formatMonth, formatPrice, formatIssuedShares, formatCompactIssuedShares, formatMarketCap,
+  formatMonth, formatPrice, formatIssuedShares, formatCompactIssuedShares, formatMarketCap, formatMarketCapChange,
   issuedSharesRecordAt, formatRate, rateTone, buildMarketView,
 } from './market.js';
 import {
@@ -152,23 +152,28 @@ function formatPriceChange(currentPrice, nextPrice) {
   return `${formatPrice(currentPrice)} → ${formatPrice(nextPrice)}`;
 }
 
-function renderLeader({ name, currentPrice, nextPrice, rate }) {
+function renderLeader({ name, currentPrice, nextPrice, rate, marketCapChange }) {
   const card = element('article', 'leader-card');
   card.append(
     element('h3', 'leader-name', name),
     element('p', 'leader-prices', formatPriceChange(currentPrice, nextPrice)),
+    element('p', 'leader-cap-change', `시총 ${formatMarketCapChange(marketCapChange)}`),
     rateElement('strong', 'leader-rate', rate),
   );
   return card;
 }
 
-function renderCard({ name, currentPrice, nextPrice, rate }) {
+function renderCard({ name, currentPrice, nextPrice, rate, marketCapChange }) {
   const card = element('article', 'stock-card');
   const summary = element('p', 'stock-card-summary');
   const rateText = rateElement('strong', 'stock-card-rate', rate);
   rateText.textContent = `(${rateText.textContent})`;
   summary.append(element('span', 'stock-card-prices', formatPriceChange(currentPrice, nextPrice)), ' ', rateText);
-  card.append(element('h3', 'stock-card-name', name), summary);
+  card.append(
+    element('h3', 'stock-card-name', name),
+    summary,
+    element('p', 'stock-card-cap-change', `시총 ${formatMarketCapChange(marketCapChange)}`),
+  );
   return card;
 }
 

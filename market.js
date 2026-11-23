@@ -85,6 +85,13 @@ export function formatMarketCap(value) {
   return formatKoreanUnits(value, 1);
 }
 
+export function formatMarketCapChange(value) {
+  if (value == null) return EMPTY_VALUE;
+  const sign = value < 0n ? "−" : value > 0n ? "+" : "";
+  const magnitude = value < 0n ? -value : value;
+  return `${sign}${formatMarketCap(magnitude)}원`;
+}
+
 export function issuedSharesRecordAt(history, month) {
   if (!month || month < FIRST_MONTH || month > LAST_ISSUED_SHARES_MONTH) return undefined;
   return history?.findLast((record) => record.month <= month);
