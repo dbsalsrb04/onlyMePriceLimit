@@ -193,6 +193,12 @@ export function buildMarketView(snapshot, month, sortMode = "name", marketCapSor
   ranked.sort((a, b) => compareRowsByRate(a, b, -1));
   const bestRate = ranked[0]?.rate;
   const leaders = ranked.filter((row) => compareDisplayedRate(row.rate, bestRate) === 0);
+  const bestMarketCapChange = rows.reduce((best, { marketCapChange }) => {
+    if (marketCapChange == null) return best;
+    return best == null || marketCapChange > best ? marketCapChange : best;
+  }, null);
+  const marketCapLeaders = bestMarketCapChange == null ? []
+    : rows.filter(({ marketCapChange }) => marketCapChange === bestMarketCapChange).sort(compareName);
 
   const compareBaseOrder = sortMode === "name"
     ? compareName
@@ -205,5 +211,5 @@ export function buildMarketView(snapshot, month, sortMode = "name", marketCapSor
     return capOrder || compareBaseOrder(a, b);
   });
 
-  return { rows, leaders };
+  return { rows, leaders, marketCapLeaders };
 }

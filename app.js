@@ -22,6 +22,7 @@ let lastMonth = INITIAL_LAST_MONTH;
 let viewType = preferences.view === 'table' ? 'table' : 'cards';
 let sortMode = ['name', 'desc', 'asc'].includes(preferences.sort) ? preferences.sort : 'desc';
 let marketCapSort = ['desc', 'asc'].includes(preferences.marketCapSort) ? preferences.marketCapSort : null;
+let leaderBasis = preferences.leaderBasis === 'market-cap' ? 'market-cap' : 'rate';
 let activePage = 'view';
 let database;
 let stocks = [];
@@ -54,7 +55,7 @@ function writePreference(key, value) {
 }
 
 function savePreferences() {
-  writePreference(preferencesKey, { month: currentMonth, view: viewType, sort: sortMode, marketCapSort });
+  writePreference(preferencesKey, { month: currentMonth, view: viewType, sort: sortMode, marketCapSort, leaderBasis });
 }
 
 function readEditorSelection() {
@@ -152,13 +153,19 @@ function formatPriceChange(currentPrice, nextPrice) {
   return `${formatPrice(currentPrice)} → ${formatPrice(nextPrice)}`;
 }
 
-function renderLeader({ name, currentPrice, nextPrice, rate, marketCapChange }) {
+function renderLeader({ name, currentPrice, nextPrice, rate, marketCapChange }, byMarketCap) {
   const card = element('article', 'leader-card');
+  const capText = `시총 ${formatMarketCapChange(marketCapChange)}`;
+  const secondary = byMarketCap ? formatRate(rate) : capText;
+  const capTone = marketCapChange > 0n ? 'up' : marketCapChange < 0n ? 'down' : 'flat';
+  const primary = byMarketCap
+    ? element('strong', `leader-primary tone-${capTone}`, capText)
+    : rateElement('strong', 'leader-primary', rate);
   card.append(
     element('h3', 'leader-name', name),
     element('p', 'leader-prices', formatPriceChange(currentPrice, nextPrice)),
-    element('p', 'leader-cap-change', `시총 ${formatMarketCapChange(marketCapChange)}`),
-    rateElement('strong', 'leader-rate', rate),
+    element('p', 'leader-secondary', secondary),
+    primary,
   );
   return card;
 }
@@ -236,10 +243,15 @@ function renderMarket() {
   capButton.title = capBasis;
   capButton.setAttribute('aria-description', capBasis);
 
-  const { rows, leaders } = buildMarketView(viewSnapshot(), currentMonth, sortMode, marketCapSort);
-  $('leaders').replaceChildren(...leaders.map(renderLeader));
-  $('leaders').hidden = leaders.length === 0;
-  $('leader-empty').hidden = leaders.length !== 0;
+  const { rows, leaders, marketCapLeaders } = buildMarketView(viewSnapshot(), currentMonth, sortMode, marketCapSort);
+  const byMarketCap = leaderBasis === 'market-cap';
+  const leaderButton = $('leader-basis');
+  leaderButton.textContent = byMarketCap ? '시가총액 기준' : '상승률 기준';
+  leaderButton.setAttribute('aria-label', `추천 기준 변경, 현재 ${leaderButton.textContent}`);
+  const recommendations = byMarketCap ? marketCapLeaders : leaders;
+  $('leaders').replaceChildren(...recommendations.map((row) => renderLeader(row, byMarketCap)));
+  $('leaders').hidden = recommendations.length === 0;
+  $('leader-empty').hidden = recommendations.length !== 0;
   $('market-empty').hidden = rows.length !== 0;
   $('stock-count').textContent = `${rows.length}개 종목`;
   $('market-cards').hidden = !rows.length || viewType !== 'cards';
@@ -802,6 +814,11 @@ function wireEvents() {
   $('add-bet').addEventListener('click', registerBet);
   $('previous-month').addEventListener('click', () => moveMonth(-1));
   $('next-month').addEventListener('click', () => moveMonth(1));
+  $('leader-basis').addEventListener('click', () => {
+    leaderBasis = leaderBasis === 'rate' ? 'market-cap' : 'rate';
+    savePreferences();
+    renderMarket();
+  });
   $('view-cards').addEventListener('click', () => setView('cards'));
   $('view-table').addEventListener('click', () => setView('table'));
   $('sort-name').addEventListener('click', () => {
