@@ -155,11 +155,11 @@ function formatPriceChange(currentPrice, nextPrice) {
 
 function renderLeader({ name, currentPrice, nextPrice, rate, marketCapChange }, byMarketCap) {
   const card = element('article', 'leader-card');
-  const capText = `시총 ${formatMarketCapChange(marketCapChange)}`;
-  const secondary = byMarketCap ? formatRate(rate) : capText;
+  const capText = formatMarketCapChange(marketCapChange);
+  const secondary = byMarketCap ? formatRate(rate) : `시총 ${capText}`;
   const capTone = marketCapChange > 0n ? 'up' : marketCapChange < 0n ? 'down' : 'flat';
   const primary = byMarketCap
-    ? element('strong', `leader-primary tone-${capTone}`, capText)
+    ? element('strong', `leader-primary leader-primary-cap tone-${capTone}`, capText)
     : rateElement('strong', 'leader-primary', rate);
   card.append(
     element('h3', 'leader-name', name),

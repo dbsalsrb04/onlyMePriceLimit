@@ -420,10 +420,14 @@ input::placeholder {
   max-width: min(46vw, 21rem);
   overflow-wrap: anywhere;
   text-align: right;
-  font-size: clamp(1.45rem, 3.9vw, 3.1rem);
+  font-size: clamp(1.45rem, 3.9vw, var(--leader-primary-max, 3.1rem));
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.055em;
+}
+
+.leader-primary-cap {
+  --leader-primary-max: 2.5rem;
 }
 
 .tone-up {
