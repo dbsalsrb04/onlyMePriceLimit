@@ -65,15 +65,21 @@ function formatScaledInteger(value, divisor, places, unit) {
   if (value == null) return EMPTY_VALUE;
   const scale = 10n ** BigInt(places);
   const rounded = (BigInt(value) * scale + divisor / 2n) / divisor;
-  const fraction = (rounded % scale).toString().padStart(places, "0");
-  return `${rounded / scale}.${fraction}${unit}`;
+  const fraction = (rounded % scale).toString().padStart(places, "0").replace(/0+$/, "");
+  return `${rounded / scale}${fraction ? `.${fraction}` : ""}${unit}`;
 }
 
 export function formatCompactIssuedShares(value) {
+  if (value != null && value < 100_000_000) {
+    return formatScaledInteger(value, 10_000n, 2, "만 주");
+  }
   return formatScaledInteger(value, 100_000_000n, 2, "억 주");
 }
 
 export function formatMarketCap(value) {
+  if (value != null && value < 1_000_000_000_000n) {
+    return formatScaledInteger(value, 100_000_000n, 1, "억");
+  }
   return formatScaledInteger(value, 1_000_000_000_000n, 1, "조");
 }
 

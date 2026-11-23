@@ -73,21 +73,24 @@
             </div>
           </header>
           <div id="market-cards" class="market-cards"></div>
-          <div id="market-table" class="market-table scroll-region" role="region" aria-label="종목별 발행 주식 수, 시총, 주가와 상승률" tabindex="0" hidden>
-            <table>
-              <thead>
-                <tr>
-                  <th scope="col" data-width-sample="TIGER 미국필라델피아반도체나스닥">종목명</th>
-                  <th scope="col" data-width-sample="0000.00억 주">발행 주식 수</th>
-                  <th scope="col" data-width-sample="0000.0조">현재 월 시총</th>
-                  <th scope="col" data-width-sample="0000.0조">다음 달 시총</th>
-                  <th scope="col" data-width-sample="00,000,000원">현재 월 주가</th>
-                  <th scope="col" data-width-sample="00,000,000원">다음 달 주가</th>
-                  <th scope="col" data-width-sample="+100.00%">상승률</th>
-                </tr>
-              </thead>
-              <tbody id="market-rows"></tbody>
-            </table>
+          <div id="market-table" class="market-table" hidden>
+            <div id="market-sticky-header" class="market-sticky-header" aria-hidden="true"></div>
+            <div id="market-table-scroll" class="market-table-scroll scroll-region" role="region" aria-label="종목별 발행 주식 수, 시총, 주가와 상승률" tabindex="0">
+              <table>
+                <thead>
+                  <tr>
+                    <th scope="col" data-width-sample="TIGER 미국필라델피아반도체나스닥">종목명</th>
+                    <th scope="col" data-width-sample="0000.00억 주">발행 주식 수</th>
+                    <th scope="col" data-width-sample="0000.0조">현재 월 시총</th>
+                    <th scope="col" data-width-sample="0000.0조">다음 달 시총</th>
+                    <th scope="col" data-width-sample="00,000,000원">현재 월 주가</th>
+                    <th scope="col" data-width-sample="00,000,000원">다음 달 주가</th>
+                    <th scope="col" data-width-sample="+100.00%">상승률</th>
+                  </tr>
+                </thead>
+                <tbody id="market-rows"></tbody>
+              </table>
+            </div>
           </div>
           <p id="market-empty" class="empty-state">등록된 종목이 없어요. 데이터 편집에서 종목을 추가할 수 있어요.</p>
         </section>

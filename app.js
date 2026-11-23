@@ -767,6 +767,13 @@ async function selectBackup(event) {
 }
 
 function wireEvents() {
+  const marketScroller = $('market-table-scroll');
+  const stickyHeader = $('market-sticky-header');
+  const headerTable = element('table');
+  headerTable.append(marketScroller.querySelector('thead').cloneNode(true));
+  stickyHeader.append(headerTable);
+  marketScroller.addEventListener('scroll', () => { stickyHeader.scrollLeft = marketScroller.scrollLeft; });
+
   const pages = ['view', 'editor', 'bets'];
   for (const page of pages) {
     $(`open-${page}`).addEventListener('click', () => openPage(page));

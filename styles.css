@@ -564,8 +564,29 @@ table {
 }
 
 .market-table {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
   width: fit-content;
   max-width: 100%;
+}
+
+.market-sticky-header, .market-table-scroll {
+  grid-area: 1 / 1;
+}
+
+.market-sticky-header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  align-self: start;
+  margin: 1px 1px 0;
+  overflow: hidden;
+  border-radius: calc(var(--radius) - 1px) calc(var(--radius) - 1px) 0 0;
+  pointer-events: none;
+}
+
+.market-table-scroll thead {
+  opacity: 0;
 }
 
 .market-table table {
@@ -588,6 +609,14 @@ table {
 .market-table thead th:first-child,
 .market-table tbody th {
   text-align: center;
+}
+
+.market-table tr > :nth-child(3) {
+  border-left: 1px solid rgb(255 255 255 / 13%);
+}
+
+.market-table tr > :nth-child(4) {
+  border-right: 1px solid rgb(255 255 255 / 13%);
 }
 
 .market-table thead th::after {
