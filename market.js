@@ -158,13 +158,13 @@ function compareRowsByRate(a, b, direction) {
   return rateOrder * direction || compareName(a, b);
 }
 
-function compareOptionalInteger(a, b, direction) {
+function compareOptionalIntegerDescending(a, b) {
   if (a == null) return b == null ? 0 : 1;
   if (b == null) return -1;
-  return compareInteger(a, b) * direction;
+  return compareInteger(b, a);
 }
 
-export function buildMarketView(snapshot, month, sortMode = "name", marketCapSort = null) {
+export function buildMarketView(snapshot, month, sortMode = "name", marketCapSort = false) {
   const nextMonth = shiftMonth(month, 1, FIRST_BET_MONTH);
   const currentPrices = new Map();
   const nextPrices = new Map();
@@ -205,9 +205,8 @@ export function buildMarketView(snapshot, month, sortMode = "name", marketCapSor
     : (a, b) => compareRowsByRate(a, b, sortMode === "asc" ? 1 : -1);
   const capChangeSort = marketCapSort && sortMode !== "name";
   const capField = capChangeSort ? "marketCapChange" : "nextMarketCap";
-  const marketCapDirection = !capChangeSort && marketCapSort === "asc" ? 1 : -1;
   rows.sort((a, b) => {
-    const capOrder = marketCapSort ? compareOptionalInteger(a[capField], b[capField], marketCapDirection) : 0;
+    const capOrder = marketCapSort ? compareOptionalIntegerDescending(a[capField], b[capField]) : 0;
     return capOrder || compareBaseOrder(a, b);
   });
 

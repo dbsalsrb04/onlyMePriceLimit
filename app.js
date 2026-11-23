@@ -21,7 +21,7 @@ let currentMonth = isValidMonth(preferences.month, FIRST_BET_MONTH) ? preference
 let lastMonth = INITIAL_LAST_MONTH;
 let viewType = preferences.view === 'table' ? 'table' : 'cards';
 let sortMode = ['name', 'desc', 'asc'].includes(preferences.sort) ? preferences.sort : 'desc';
-let marketCapSort = ['desc', 'asc'].includes(preferences.marketCapSort) ? preferences.marketCapSort : null;
+let marketCapSort = [true, 'desc', 'asc'].includes(preferences.marketCapSort);
 let leaderBasis = preferences.leaderBasis === 'market-cap' ? 'market-cap' : 'rate';
 let activePage = 'view';
 let database;
@@ -237,9 +237,9 @@ function renderMarket() {
   $('view-table').setAttribute('aria-pressed', String(viewType === 'table'));
   $('sort-name').setAttribute('aria-pressed', String(sortMode === 'name'));
   renderSortButton('sort-rate', '상승률 순', sortMode);
-  const capBasis = marketCapSort && sortMode !== 'name' ? '시총 증가액 내림차순' : '다음 달 시총 기준';
-  renderSortButton('sort-market-cap', '시가총액 순', marketCapSort);
+  const capBasis = sortMode !== 'name' ? '시총 증가액 내림차순' : '다음 달 시총 내림차순';
   const capButton = $('sort-market-cap');
+  capButton.setAttribute('aria-pressed', String(marketCapSort));
   capButton.title = capBasis;
   capButton.setAttribute('aria-description', capBasis);
 
@@ -832,7 +832,7 @@ function wireEvents() {
     renderMarket();
   });
   $('sort-market-cap').addEventListener('click', () => {
-    marketCapSort = { off: 'desc', desc: 'asc', asc: null }[marketCapSort ?? 'off'];
+    marketCapSort = !marketCapSort;
     savePreferences();
     renderMarket();
   });
